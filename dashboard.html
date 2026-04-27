@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - Reflex ADS</title>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <header class="cabecalho">
+    <div class="container-navegacao">
+      <div class="logo">Reflex <span>ADS</span></div>
+      <nav>
+        <ul class="menu-navegacao">
+          <li><a href="conteudos.html">Conteúdos</a></li>
+          <li><a href="quizzes.html">Quizzes</a></li>
+          <li><a href="#" class="ativo">Dashboard</a></li>
+        </ul>
+      </nav>
+      <div>
+        <span id="user-name" style="margin-right: 15px; font-weight: 600;"></span>
+        <button onclick="logout()" class="botao-secundario" style="padding: 0.5rem 1rem;">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="heroi">
+    <div class="container">
+      <h1 class="titulo-heroi">Bem-vindo de volta, <span id="welcome-name"></span>!</h1>
+      <p class="descricao-heroi">Continue seu progresso na plataforma.</p>
+    </div>
+  </div>
+
+  <div class="container" style="padding: 3rem 1.5rem;">
+    <div class="cartao" style="max-width: 800px; margin: 0 auto;">
+      <h2 style="margin-bottom: 1.5rem;">Seu Progresso</h2>
+      <div style="background: #f0f0f0; height: 12px; border-radius: 9999px; overflow: hidden; margin-bottom: 2rem;">
+        <div style="width: 35%; height: 100%; background: var(--azul);"></div>
+      </div>
+      <p><strong>1 de 4 módulos concluídos</strong></p>
+    </div>
+
+    <h2 style="margin: 3rem 0 1.5rem; text-align: center;">Cursos Disponíveis</h2>
+    <div id="cursos-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;"></div>
+  </div>
+
+  <footer class="rodape">
+    <div class="rodape-conteudo">
+      <div><h3>Reflex ADS</h3><p>Democratizando o ensino de tecnologia.</p></div>
+      <div><h3>Contato</h3><p>contato@reflex.edu.br</p></div>
+    </div>
+    <div class="rodape-copyright"><p>© 2026 Reflex ADS - MVP Integrado</p></div>
+  </footer>
+
+  <div class="toast-container" id="toasts"></div>
+
+  <script>
+    const API = 'http://localhost:8000';
+    const token = localStorage.getItem('token');
+    const username = localStorage.getItem('username');
+
+    if (!token) {
+      window.location.href = 'login.html';
+    }
+
+    document.getElementById('user-name').textContent = username || 'Aluno';
+    document.getElementById('welcome-name').textContent = username || 'Aluno';
+
+    async function carregarCursos() {
+      try {
+        const res = await fetch(`${API}/courses/`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error();
+        const cursos = await res.json();
+        const container = document.getElementById('cursos-list');
+        container.innerHTML = '';
+        cursos.forEach(c => {
+          const div = document.createElement('div');
+          div.className = 'cartao';
+          div.innerHTML = `
+            <h3>${c.title}</h3>
+            <p>${c.description || 'Sem descrição'}</p>
+            <button onclick="matricular(${c.id})" class="botao-primario" style="margin-top: 1rem; width: 100%;">Matricular</button>
+          `;
+          container.appendChild(div);
+        });
+      } catch (e) {
+        toast('Erro ao carregar cursos. API rodando?', 'erro');
+      }
+    }
+
+    async function matricular(course_id) {
+      try {
+        const res = await fetch(`${API}/courses/enrollments?course_id=${course_id}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          toast('Matrícula realizada com sucesso!', 'sucesso');
+        } else {
+          toast('Erro na matrícula.', 'erro');
+        }
+      } catch (e) {
+        toast('Erro de conexão.', 'erro');
+      }
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'login.html';
+    }
+
+    function toast(msg, tipo = 'sucesso') {
+      const t = document.createElement('div');
+      t.className = `toast ${tipo}`;
+      t.textContent = msg;
+      document.getElementById('toasts').appendChild(t);
+      setTimeout(() => t.remove(), 4000);
+    }
+
+    // Carrega ao abrir
+    window.onload = carregarCursos;
+  </script>
+</body>
+</html>

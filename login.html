@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login - Reflex ADS</title>
+  <link rel="stylesheet" href="src/style.css" />
+  <style>
+    body {
+      min-height: 100vh;
+      background: var(--grad-login);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .topo {
+      font-family: 'Syne', sans-serif;
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: #fff;
+      margin: 2rem 0 1.5rem;
+      text-align: center;
+    }
+    .topo span { color: var(--amarelo); }
+
+    .card-auth {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(0,0,0,.25);
+      width: 100%;
+      max-width: 440px;
+      padding: 2.5rem;
+      margin-bottom: 2rem;
+    }
+    .card-auth h2 {
+      text-align: center;
+      color: #333;
+      font-size: 1.6rem;
+      margin-bottom: .5rem;
+      font-family: 'Syne', sans-serif;
+    }
+    .card-auth h2::after {
+      content: '';
+      display: block;
+      width: 60px; height: 4px;
+      background: linear-gradient(to right, #6a11cb, #2575fc);
+      margin: .5rem auto 1.5rem;
+      border-radius: 2px;
+    }
+    .form-group { margin-bottom: 1.2rem; }
+    .form-group label { display: block; margin-bottom: .4rem; font-weight: 600; color: #555; font-size: .9rem; }
+    .form-group input {
+      width: 100%; padding: .75rem 1rem;
+      border: 2px solid #e1e1e1; border-radius: 8px;
+      font-size: 1rem; font-family: inherit;
+      background: #f9f9f9; transition: all .25s;
+    }
+    .form-group input:focus {
+      border-color: #6a11cb; background: #fff;
+      box-shadow: 0 0 0 3px rgba(106,17,203,.1); outline: none;
+    }
+    .btn-row { display: flex; gap: 1rem; margin-top: 1.5rem; }
+    .btn-login {
+      flex: 1; padding: .8rem;
+      background: linear-gradient(to right, #6a11cb, #2575fc);
+      color: #fff; border: none; border-radius: 8px;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: all .2s;
+    }
+    .btn-login:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(106,17,203,.4); }
+    .btn-login:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+    .btn-cadastro {
+      flex: 1; padding: .8rem;
+      background: #f0f0f0; color: #555;
+      border: 2px solid #e1e1e1; border-radius: 8px;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: all .2s; text-decoration: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-cadastro:hover { background: #e5e5e5; transform: translateY(-2px); }
+
+    .msg-erro {
+      background: #fee2e2; border: 1px solid #fca5a5;
+      color: #dc2626; border-radius: 8px; padding: .75rem 1rem;
+      font-size: .875rem; margin-bottom: 1rem; display: none;
+    }
+    .msg-erro.visivel { display: block; }
+
+    /* Descrição abaixo */
+    .descricao-log {
+      width: 100%; max-width: 800px;
+      text-align: center; padding: 2.5rem 1.5rem;
+      color: #fff;
+    }
+    .descricao-log h2 { font-size: 1.3rem; font-weight: 400; line-height: 1.7; }
+
+    .cardsinfo {
+      display: flex; justify-content: center;
+      padding: 2rem 5%; gap: 2rem;
+      width: 100%; max-width: 1200px; flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+    .card-info {
+      background: #fff; color: #333;
+      border-radius: 16px; padding: 2rem;
+      flex: 1; min-width: 220px; max-width: 320px;
+      text-align: center; transition: transform .3s;
+    }
+    .card-info:hover { transform: translateY(-5px); }
+    .card-info h2 { font-size: 2rem; color: var(--azul); margin-bottom: .5rem; }
+    .card-info h3 { font-family: 'Syne', sans-serif; font-weight: 700; margin-bottom: .75rem; }
+    .card-info p { font-size: .875rem; color: #666; margin-bottom: 1rem; }
+    .card-info ul { text-align: left; padding-left: 1.2rem; font-size: .875rem; color: #555; }
+    .card-info li { margin-bottom: .4rem; }
+
+    footer { width: 100%; }
+  </style>
+</head>
+<body>
+
+<div class="toast-container" id="toasts"></div>
+
+<h1 class="topo">Reflex <span>ADS</span></h1>
+
+<div class="card-auth">
+  <h2>login</h2>
+
+  <div class="msg-erro" id="erro"></div>
+
+  <div class="form-group">
+    <label for="username">Usuário</label>
+    <input type="text" id="username" placeholder="seu_usuario" autocomplete="username" />
+  </div>
+
+  <div class="form-group">
+    <label for="password">Senha</label>
+    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-login" id="btnLogin" onclick="fazerLogin()">Entrar</button>
+    <a class="btn-cadastro" href="cadastro.html">Criar Conta</a>
+  </div>
+</div>
+
+<section class="descricao-log">
+  <h2>Um espaço para explorar tecnologia, matemática e ciência da computação de forma prática e interativa.</h2>
+</section>
+
+<div class="cardsinfo">
+  <div class="card-info">
+    <h2>&lt;/&gt;</h2>
+    <h3>Lógica de Programação</h3>
+    <p>Algoritmos, estruturas de controle e resolução de problemas.</p>
+    <ul><li>Fluxogramas Interativos</li><li>Pseudocódigo Visual</li><li>Exercícios Práticos</li></ul>
+  </div>
+  <div class="card-info">
+    <h2>📊</h2>
+    <h3>Matemática</h3>
+    <p>Conceitos aplicados à computação com simuladores interativos.</p>
+    <ul><li>Álgebra Linear</li><li>Estatística</li><li>Matemática Discreta</li></ul>
+  </div>
+  <div class="card-info">
+    <h2>🖥️</h2>
+    <h3>Ciências da Computação</h3>
+    <p>Fundamentos teóricos e práticos da computação.</p>
+    <ul><li>Estrutura de Dados</li><li>Complexidade</li><li>Teoria da Computação</li></ul>
+  </div>
+</div>
+
+<footer class="rodape">
+  <div class="container">
+    <div class="rodape-conteudo">
+      <div class="rodape-coluna"><h3>Reflex ADS</h3><p>Democratizando o ensino de tecnologia para escolas públicas.</p></div>
+      <div class="rodape-coluna"><h3>Contato</h3><p>contato@reflex.edu.br</p></div>
+      <div class="rodape-coluna"><h3>Parceiros</h3><p>Secretaria da Educação</p></div>
+    </div>
+    <div class="rodape-copyright"><p>© 2025 Reflex ADS - Todos os direitos reservados.</p></div>
+  </div>
+</footer>
+
+<script>
+  const API = 'http://localhost:8000';
+
+  // Se já logado, redireciona
+  if (localStorage.getItem('token')) {
+    window.location.href = 'dashboard.html';
+  }
+
+  // Enter para logar
+  document.getElementById('password').addEventListener('keypress', e => {
+    if (e.key === 'Enter') fazerLogin();
+  });
+
+  async function fazerLogin() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const btn = document.getElementById('btnLogin');
+    const erro = document.getElementById('erro');
+
+    if (!username || !password) {
+      mostrarErro('Preencha usuário e senha.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+    erro.classList.remove('visivel');
+
+    try {
+      const body = new URLSearchParams({ username, password });
+      const res = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        mostrarErro(data.detail || 'Usuário ou senha inválidos.');
+        return;
+      }
+
+      // Salva token e dados do usuário
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('username', username);
+
+      window.location.href = 'dashboard.html';
+
+    } catch (e) {
+      mostrarErro('Não foi possível conectar à API. Verifique se o servidor está rodando em localhost:8000.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+  }
+
+  function mostrarErro(msg) {
+    const el = document.getElementById('erro');
+    el.textContent = msg;
+    el.classList.add('visivel');
+  }
+
+  function toast(msg, tipo = 'sucesso') {
+    const t = document.createElement('div');
+    t.className = `toast ${tipo}`;
+    t.textContent = msg;
+    document.getElementById('toasts').appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+</script>
+</body>
+</html>
