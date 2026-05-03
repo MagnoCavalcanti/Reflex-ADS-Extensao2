@@ -3,7 +3,7 @@ import calculadoraImg from "../assets/fiveicon_calculadora.png";
 
 export default function CadastroPage() {
   return (
-    <main className="min-h-screen bg-linear-to-b from-blue-700 to-purple-700 text-white">
+    <main className="min-h-screen min-w-screen bg-linear-to-b from-blue-700 to-purple-700 text-white">
       <h1 className="py-5 text-center text-5xl font-bold">
         Reflex <span className="text-yellow-300">ADS</span>
       </h1>

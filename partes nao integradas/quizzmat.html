@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reflex ADS - Quizzes Matemática</title>
+    <link rel="stylesheet" href="/src/quizzmat.css">
+</head>
+
+
+<body>
+    <header class="cabecalho">
+        <nav class="container-navegacao">
+            <div class="conteudo-navegacao">
+                <div class="logo">Reflex ADS</div>
+                <ul class="menu-navegacao">
+                    <li><a href="dashboardaluno.html" class="ativo">Início</a></li>
+
+                    <li><a href="conteudos.html" class="ativo">Conteúdos</a></li>
+                    <li><a href="quizzes.html">Quizzes</a></li>
+                    <li><a href="sobre.html">Sobre</a></li>
+                    <li><a href="contato.html">Contato</a></li>
+                </ul>
+                <div class="perfil">
+                    <img src="/src/img/perfil-de-usuario.png" alt="perfil-de-usuario"
+                        style="width: 60px; height: 60px;">
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <section class="heroi">
+        <div class="container">
+            <h1 class="heroi-titulo">Quizzes <span class="destaque-amarelo">Matemática</span></h1>
+            <p class="heroi-subtitulo">
+                Desafie-se na matemática! Teste seus conhecimentos com quizzes interativos, do básico ao avançado, e
+                evolua a cada fase.</strong>.
+            </p>
+        </div>
+
+        <button class="botao-comecar">Começar Agora</button>
+        <a href="index.html">
+            <button class="botao-voltar">Voltar ao Início</button></a>
+
+    </section>
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Progress Card -->
+        <div class="progress-card">
+            <div class="progress-info">
+                <h3>Seu Progresso</h3>
+                <p>4 de 7 quizzes concluídos</p>
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
+            <div class="trophy-icon">🏆</div>
+        </div>
+
+        <!-- Search Section -->
+        <div class="search-section">
+            <h2>Buscar Quiz</h2>
+            <div class="search-bar">
+                <input type="text" placeholder="Assunto (Ex: Números Decimais)">
+            </div>
+        </div>
+
+        <!-- Quizzes Section -->
+        <div class="quizzes-section">
+            <h2>Quizzes</h2>
+            <div class="quiz-grid">
+                <!-- Unlocked Quiz -->
+                <div class="quiz-card">
+                    <h3>Conjuntos Numéricos</h3>
+                    <p>Aceite o desafio numérico!</p>
+                    <div class="quiz-footer">
+                        <div class="quiz-time">
+                            <span>⏱</span>
+                            <span>30 min</span>
+                        </div>
+
+                        <a href="quiz-conj-num.html">
+                            <button class="btn-start">Iniciar</button></a>
+                    </div>
+                </div>
+
+                <!-- Locked Quizzes -->
+                <div class="quiz-card locked">
+                    <div class="lock-icon">🔒</div>
+                    <h3>Álgebra Básica</h3>
+                    <p>Resolva equações!</p>
+                    <div class="quiz-footer">
+                        <div class="quiz-time">
+                            <span>⏱</span>
+                            <span>25 min</span>
+                        </div>
+                        <button class="btn-start">Iniciar</button>
+                    </div>
+                </div>
+
+                <div class="quiz-card locked">
+                    <div class="lock-icon">🔒</div>
+                    <h3>Geometria</h3>
+                    <p>Formas e ângulos!</p>
+                    <div class="quiz-footer">
+                        <div class="quiz-time">
+                            <span>⏱</span>
+                            <span>35 min</span>
+                        </div>
+                        <button class="btn-start">Iniciar</button>
+                    </div>
+                </div>
+
+                <div class="quiz-card locked">
+                    <div class="lock-icon">🔒</div>
+                    <h3>Trigonometria</h3>
+                    <p>Seno, cosseno e tangente!</p>
+                    <div class="quiz-footer">
+                        <div class="quiz-time">
+                            <span>⏱</span>
+                            <span>40 min</span>
+                        </div>
+                        <button class="btn-start">Iniciar</button>
+                    </div>
+                </div>
+
+                <div class="quiz-card locked">
+                    <div class="lock-icon">🔒</div>
+                    <h3>Estatística</h3>
+                    <p>Análise de dados!</p>
+                    <div class="quiz-footer">
+                        <div class="quiz-time">
+                            <span>⏱</span>
+                            <span>30 min</span>
+                        </div>
+                        <button class="btn-start">Iniciar</button>
+                    </div>
+                </div>
+
+                <div class="quiz-card locked">
+                    <div class="lock-icon">🔒</div>
+                    <h3>Probabilidade</h3>
+                    <p>Chances e eventos!</p>
+                    <div class="quiz-footer">
+                        <div class="quiz-time">
+                            <span>⏱</span>
+                            <span>28 min</span>
+                        </div>
+                        <button class="btn-start">Iniciar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="rodape">
+        <div class="container">
+            <div class="rodape-conteudo">
+                <div class="rodape-coluna">
+                    <h3>Reflex ADS</h3>
+                    <p>Democratizando o ensino de conhecimentos em tecnologia para escolas públicas.</p>
+                </div>
+                <div class="rodape-coluna">
+                    <h3>Contato</h3>
+                    <p>contato@reflex.edu.br</p>
+                    <p>(88) 9999-9999</p>
+                </div>
+                <div class="rodape-coluna">
+                    <h3>Parceiros</h3>
+                    <p>Secretaria da Educação</p>
+                    <p>Universidades Parceiras</p>
+                </div>
+            </div>
+            <div class="rodape-copyright">
+                <p>© 2025 Reflex ADS - Todos os direitos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+</body>
+
+</html>

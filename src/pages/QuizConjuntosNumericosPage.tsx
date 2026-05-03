@@ -50,7 +50,7 @@ const questions = [
 
 export default function QuizConjuntosNumericosPage() {
   return (
-    <main className="min-h-screen bg-gray-100 text-gray-800">
+    <main className="min-h-screen min-w-screen bg-gray-100 text-gray-800">
       <Navbar />
       <section className="bg-linear-to-r from-blue-700 via-indigo-800 to-purple-600 px-6 py-20 text-center text-white">
         <div className="mx-auto max-w-3xl">
