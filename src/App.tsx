@@ -1,4 +1,5 @@
 import { Navigate, RouterProvider, createBrowserRouter } from "react-router";
+import IndexPage from "./pages/index";
 import CadastroPage from "./pages/CadastroPage";
 import ContatoPage from "./pages/ContatoPage";
 import ConteudosPage from "./pages/ConteudosPage";
@@ -14,7 +15,7 @@ import RedefinirSenhaPage from "./pages/RedefinirSenhaPage";
 import SobrePage from "./pages/SobrePage";
 
 const router = createBrowserRouter([
-  { path: "/", element: <Navigate to="/login" replace /> },
+  { path: "/", element: <IndexPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/cadastro", element: <CadastroPage /> },
   { path: "/recuperar-senha", element: <RecuperarSenhaPage /> },
@@ -31,7 +32,7 @@ const router = createBrowserRouter([
     path: "/quizzes/matematica/conjuntos-numericos",
     element: <QuizConjuntosNumericosPage />,
   },
-  { path: "*", element: <Navigate to="/login" replace /> },
+  { path: "*", element: <Navigate to="/" replace /> },
 ]);
 
 function App() {

@@ -1,7 +1,52 @@
-import cienciasComputImg from "../assets/cienciasComput.png";
-import calculadoraImg from "../assets/fiveicon_calculadora.png";
+import { useState } from "react";
+import { useNavigate } from "react-router";
+import { useAuth } from "../contexts/AuthContext";
+import type { TypeUser } from "../types/auth.types";
 
 export default function CadastroPage() {
+  const { register } = useAuth();
+  const navigate = useNavigate();
+
+  const [fullname, setFullname] = useState("");
+  const [email, setEmail] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [typeUser, setTypeUser] = useState<TypeUser>("A");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (password !== confirmPassword) {
+      setError("As senhas não coincidem.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await register({ fullname, email, telephone, username, password, type_user: typeUser });
+      navigate("/login"); // redireciona para login após cadastro — ajuste se necessário
+    } catch (err: unknown) {
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as { response?: { data?: { detail?: string } } }).response?.data?.detail === "string"
+      ) {
+        setError((err as { response: { data: { detail: string } } }).response.data.detail);
+      } else {
+        setError("Erro ao realizar cadastro. Verifique os dados e tente novamente.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen min-w-screen bg-linear-to-b from-blue-700 to-purple-700 text-white">
       <h1 className="py-5 text-center text-5xl font-bold">
@@ -10,83 +55,132 @@ export default function CadastroPage() {
 
       <section className="mx-auto my-5 w-full max-w-xl rounded-2xl bg-white p-8 text-gray-900 shadow-xl">
         <h2 className="mb-8 text-center text-3xl font-semibold">Cadastro</h2>
-        <div className="space-y-4">
+
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="name" className="mb-2 block text-sm font-medium text-gray-600">Nome completo</label>
-            <input id="name" type="text" className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3" />
+            <label htmlFor="fullname" className="mb-2 block text-sm font-medium text-gray-600">Nome completo</label>
+            <input
+              id="fullname"
+              type="text"
+              value={fullname}
+              onChange={(e) => setFullname(e.target.value)}
+              className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3"
+              required
+            />
           </div>
-          <div>
-            <label htmlFor="idade" className="mb-2 block text-sm font-medium text-gray-600">Idade</label>
-            <input id="idade" type="number" className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3" />
-          </div>
+
           <div>
             <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-600">Email</label>
-            <input id="email" type="email" className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3" />
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3"
+              required
+            />
           </div>
+
           <div>
             <label htmlFor="tel" className="mb-2 block text-sm font-medium text-gray-600">Telefone</label>
-            <input id="tel" type="tel" className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3" />
+            <input
+              id="tel"
+              type="tel"
+              value={telephone}
+              onChange={(e) => setTelephone(e.target.value)}
+              placeholder="(XX) XXXXX-XXXX"
+              className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3"
+              required
+            />
           </div>
+
           <div>
-            <label htmlFor="user" className="mb-2 block text-sm font-medium text-gray-600">Nome de usuário</label>
-            <input id="user" type="text" className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3" />
+            <label htmlFor="username" className="mb-2 block text-sm font-medium text-gray-600">Nome de usuário</label>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3"
+              required
+            />
           </div>
+
           <div>
             <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-600">Senha</label>
-            <input id="password" type="password" className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3" />
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3"
+              required
+            />
           </div>
+
           <div>
             <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-gray-600">Confirme sua senha</label>
-            <input id="confirmPassword" type="password" className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3" />
+            <input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3"
+              required
+            />
           </div>
-        </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button className="rounded-lg bg-linear-to-r from-purple-700 to-blue-500 px-4 py-3 font-semibold text-white">Finalizar Cadastro</button>
-          <button className="rounded-lg border-2 border-gray-200 bg-gray-100 px-4 py-3 font-semibold text-gray-600">Login</button>
-        </div>
-      </section>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-600">Tipo de usuário</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setTypeUser("A")}
+                className={`rounded-lg border-2 px-4 py-3 font-semibold transition-colors ${
+                  typeUser === "A"
+                    ? "border-purple-600 bg-purple-50 text-purple-700"
+                    : "border-gray-200 bg-gray-50 text-gray-600"
+                }`}
+              >
+                Aluno
+              </button>
+              <button
+                type="button"
+                onClick={() => setTypeUser("P")}
+                className={`rounded-lg border-2 px-4 py-3 font-semibold transition-colors ${
+                  typeUser === "P"
+                    ? "border-purple-600 bg-purple-50 text-purple-700"
+                    : "border-gray-200 bg-gray-50 text-gray-600"
+                }`}
+              >
+                Professor
+              </button>
+            </div>
+          </div>
 
-      <section className="mx-auto my-8 max-w-4xl px-4 text-center">
-        <h2 className="text-2xl font-normal leading-relaxed">
-          Um espaço para explorar tecnologia, matemática e ciência da computação de forma prática e interativa.
-          Aqui você encontra materiais, exercícios e simuladores pensados para apoiar sua jornada.
-        </h2>
-      </section>
+          {error && (
+            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
-      <section className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-8 md:grid-cols-3">
-        <article className="rounded-2xl bg-white p-8 text-center text-black">
-          <h3 className="mb-2 text-3xl font-bold">&lt;/&gt;</h3>
-          <h4 className="mb-4 text-xl font-semibold">Lógica de programação</h4>
-          <p className="mb-4">Algoritmos, estruturas de controle, funções e resolução de problemas através da programação visual e interativa.</p>
-          <ul className="list-disc space-y-1 pl-5 text-left">
-            <li>Fluxogramas Interativos</li>
-            <li>Pseudocódigo Visual</li>
-            <li>Exercícios Práticos</li>
-          </ul>
-        </article>
-
-        <article className="rounded-2xl bg-white p-8 text-center text-black">
-          <img src={calculadoraImg} alt="Ícone de calculadora" className="mx-auto mb-4 h-14 w-14" />
-          <h4 className="mb-4 text-xl font-semibold">Matemática</h4>
-          <p className="mb-4">Conceitos matemáticos aplicados à computação, com visualizações gráficas e simuladores interativos.</p>
-          <ul className="list-disc space-y-1 pl-5 text-left">
-            <li>Álgebra Linear</li>
-            <li>Estatística</li>
-            <li>Matemática Discreta</li>
-          </ul>
-        </article>
-
-        <article className="rounded-2xl bg-white p-8 text-center text-black">
-          <img src={cienciasComputImg} alt="Ciência da computação" className="mx-auto mb-4 h-14 w-14" />
-          <h4 className="mb-4 text-xl font-semibold">Ciências da Computação</h4>
-          <p className="mb-4">Fundamentos teóricos e práticos da computação, estruturas de dados e análise de algoritmos.</p>
-          <ul className="list-disc space-y-1 pl-5 text-left">
-            <li>Estrutura de Dados</li>
-            <li>Complexidade</li>
-            <li>Teoria da Computação</li>
-          </ul>
-        </article>
+          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="rounded-lg bg-linear-to-r from-purple-700 to-blue-500 px-4 py-3 font-semibold text-white disabled:opacity-60"
+            >
+              {isLoading ? "Cadastrando..." : "Finalizar Cadastro"}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/login")}
+              className="rounded-lg border-2 border-gray-200 bg-gray-100 px-4 py-3 font-semibold text-gray-600"
+            >
+              Login
+            </button>
+          </div>
+        </form>
       </section>
     </main>
   );

@@ -1,5 +1,5 @@
 import { NavLink } from "react-router";
-import perfilImg from "../img/perfil-de-usuario.png";
+import perfilImg from "../assets/perfil-de-usuario.png";
 
 const links = [
   { label: "Início", to: "/dashboard", end: true },
