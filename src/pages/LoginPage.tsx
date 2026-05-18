@@ -18,7 +18,7 @@ export default function LoginPage() {
 
     try {
       await login({ username, password });
-      navigate("/"); // redireciona após login — ajuste a rota se necessário
+      navigate("/");
     } catch (err: unknown) {
       if (
         typeof err === "object" &&
