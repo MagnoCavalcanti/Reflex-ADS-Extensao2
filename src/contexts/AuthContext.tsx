@@ -5,6 +5,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { isMockApiEnabled } from "../config/env";
+import {
+  createMockAccessToken,
+  MOCK_LOGIN,
+  MOCK_USER,
+} from "../mocks/auth.mock";
 import api from "../services/api";
 import type {
   AuthContextType,
@@ -49,6 +55,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<void> => {
+    if (isMockApiEnabled()) {
+      const isValidMockLogin =
+        credentials.username === MOCK_LOGIN.username &&
+        credentials.password === MOCK_LOGIN.password;
+
+      if (!isValidMockLogin) {
+        throw { response: { data: { detail: "Usuário ou senha inválidos." } } };
+      }
+
+      const access_token = createMockAccessToken(MOCK_USER);
+      localStorage.setItem(TOKEN_KEY, access_token);
+      api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+      setToken(access_token);
+      setUser(MOCK_USER);
+      return;
+    }
+
     const formData = new FormData();
     formData.append("username", credentials.username);
     formData.append("password", credentials.password);

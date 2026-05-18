@@ -1,4 +1,5 @@
 import { Navigate, RouterProvider, createBrowserRouter } from "react-router";
+import RequireAuth from "./components/RequireAuth";
 import IndexPage from "./pages/index";
 import CadastroPage from "./pages/CadastroPage";
 import ContatoPage from "./pages/ContatoPage";
@@ -20,7 +21,14 @@ const router = createBrowserRouter([
   { path: "/cadastro", element: <CadastroPage /> },
   { path: "/recuperar-senha", element: <RecuperarSenhaPage /> },
   { path: "/redefinir-senha", element: <RedefinirSenhaPage /> },
-  { path: "/dashboard", element: <DashboardPage /> },
+  {
+    path: "/dashboard",
+    element: (
+      <RequireAuth>
+        <DashboardPage />
+      </RequireAuth>
+    ),
+  },
   { path: "/perfil", element: <PerfilPage /> },
   { path: "/sobre", element: <SobrePage /> },
   { path: "/contato", element: <ContatoPage /> },
