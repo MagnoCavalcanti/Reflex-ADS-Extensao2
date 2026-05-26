@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<void> => {
-    const formData = new FormData();
+    const formData = new URLSearchParams();
     formData.append("username", credentials.username);
     formData.append("password", credentials.password);
 
