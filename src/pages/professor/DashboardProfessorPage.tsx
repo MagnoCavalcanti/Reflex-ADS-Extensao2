@@ -42,7 +42,7 @@ export default function DashboardProfessorPage() {
     <main className="flex min-h-screen min-w-screen flex-col bg-linear-to-b from-slate-50 to-gray-100 text-gray-900">
       <header className="border-b bg-white shadow-sm">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
-          <NavLink to="/dashboard" className="text-xl font-bold">
+          <NavLink to="/professor/dashboard" className="text-xl font-bold">
             Reflex <span className="text-amber-500">ADS</span>
           </NavLink>
           <nav>
@@ -54,7 +54,7 @@ export default function DashboardProfessorPage() {
                 <NavLink to="/quizzes" className="hover:text-gray-900">Quizzes</NavLink>
               </li>
               <li>
-                <NavLink to="/dashboard" className="text-gray-900">Dashboard</NavLink>
+                <NavLink to="/professor/dashboard" className="text-gray-900">Dashboard</NavLink>
               </li>
             </ul>
           </nav>

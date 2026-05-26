@@ -1,7 +1,6 @@
 import { Navigate } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import DashboardAlunoPage from "./aluno/DashboardAlunoPage";
-import DashboardProfessorPage from "./professor/DashboardProfessorPage";
+import { getDashboardPathByRole, isValidUserRole } from "../utils/auth";
 
 export default function DashboardPage() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -18,9 +17,9 @@ export default function DashboardPage() {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.type_user === "P") {
-    return <DashboardProfessorPage />;
+  if (!isValidUserRole(user.type_user)) {
+    return <Navigate to="/login" replace />;
   }
 
-  return <DashboardAlunoPage />;
+  return <Navigate to={getDashboardPathByRole(user.type_user)} replace />;
 }

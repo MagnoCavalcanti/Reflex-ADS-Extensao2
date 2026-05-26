@@ -5,8 +5,6 @@ const links = [
   { label: "Início", to: "/dashboard", end: true },
   { label: "Conteúdos", to: "/conteudos", end: false },
   { label: "Quizzes", to: "/quizzes", end: false },
-  { label: "Sobre", to: "/sobre", end: false },
-  { label: "Contato", to: "/contato", end: false },
 ];
 
 type NavbarProps = {

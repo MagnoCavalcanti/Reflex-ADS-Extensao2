@@ -5,12 +5,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { isMockApiEnabled } from "../config/env";
-import {
-  createMockAccessToken,
-  MOCK_LOGIN,
-  MOCK_USER,
-} from "../mocks/auth.mock";
 import api from "../services/api";
 import type {
   AuthContextType,
@@ -18,6 +12,7 @@ import type {
   RegisterData,
   User,
 } from "../types/auth.types";
+import { normalizeUserRole } from "../utils/auth";
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -34,15 +29,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (storedToken) {
       api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
-      setToken(storedToken);
 
       // Decodifica o payload do JWT para recuperar dados do usuário
       try {
         const payload = JSON.parse(atob(storedToken.split(".")[1]));
+        const typeUser = normalizeUserRole(payload.type_user);
+
+        if (!typeUser) {
+          throw new Error("Invalid user role");
+        }
+
+        setToken(storedToken);
         setUser({
           user_id: payload.user_id,
           username: payload.sub ?? payload.username,
-          type_user: payload.type_user,
+          type_user: typeUser,
         });
       } catch {
         // Token corrompido — limpa tudo
@@ -65,12 +66,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const { access_token, user_id, username, type_user } = data;
+    const typeUser = normalizeUserRole(type_user);
+
+    if (!typeUser) {
+      throw new Error("Tipo de usuário inválido.");
+    }
 
     localStorage.setItem(TOKEN_KEY, access_token);
     api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
 
     setToken(access_token);
-    setUser({ user_id, username, type_user });
+    setUser({ user_id, username, type_user: typeUser });
   };
 
   const register = async (data: RegisterData): Promise<void> => {
