@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router";
+import Navbar from "../../components/Navbar";
 import { useAuth } from "../../contexts/AuthContext";
 
 const demoMetricas = [
@@ -29,47 +29,12 @@ const demoAcoes = [
 ];
 
 export default function DashboardProfessorPage() {
-  const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
   const username = user?.username ?? "Professor";
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
 
   return (
     <main className="flex min-h-screen min-w-screen flex-col bg-linear-to-b from-slate-50 to-gray-100 text-gray-900">
-      <header className="border-b bg-white shadow-sm">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
-          <NavLink to="/professor/dashboard" className="text-xl font-bold">
-            Reflex <span className="text-amber-500">ADS</span>
-          </NavLink>
-          <nav>
-            <ul className="flex flex-wrap gap-6 text-sm font-medium text-gray-700">
-              <li>
-                <NavLink to="/conteudos" className="hover:text-gray-900">Conteúdos</NavLink>
-              </li>
-              <li>
-                <NavLink to="/quizzes" className="hover:text-gray-900">Quizzes</NavLink>
-              </li>
-              <li>
-                <NavLink to="/professor/dashboard" className="text-gray-900">Dashboard</NavLink>
-              </li>
-            </ul>
-          </nav>
-          <div className="flex items-center gap-4">
-            <span className="font-semibold text-gray-800">Professor</span>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              onClick={handleLogout}
-            >
-              Sair
-            </button>
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       <section className="bg-linear-to-r from-emerald-700 via-teal-700 to-blue-700 px-6 py-16 text-center text-white">
         <div className="mx-auto max-w-3xl">
