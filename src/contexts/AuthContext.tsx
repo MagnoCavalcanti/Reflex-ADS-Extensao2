@@ -55,24 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<void> => {
-    if (isMockApiEnabled()) {
-      const isValidMockLogin =
-        credentials.username === MOCK_LOGIN.username &&
-        credentials.password === MOCK_LOGIN.password;
-
-      if (!isValidMockLogin) {
-        throw { response: { data: { detail: "Usuário ou senha inválidos." } } };
-      }
-
-      const access_token = createMockAccessToken(MOCK_USER);
-      localStorage.setItem(TOKEN_KEY, access_token);
-      api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
-      setToken(access_token);
-      setUser(MOCK_USER);
-      return;
-    }
-
-    const formData = new FormData();
+    const formData = new URLSearchParams();
     formData.append("username", credentials.username);
     formData.append("password", credentials.password);
 
