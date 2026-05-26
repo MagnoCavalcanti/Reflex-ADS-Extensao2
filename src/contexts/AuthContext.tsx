@@ -5,6 +5,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { isMockApiEnabled } from "../config/env";
+import {
+  createMockAccessToken,
+  MOCK_LOGIN,
+  MOCK_USER,
+} from "../mocks/auth.mock";
 import api from "../services/api";
 import type {
   AuthContextType,

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { isMockApiEnabled } from "../config/env";
 import { useAuth } from "../contexts/AuthContext";
+import { MOCK_LOGIN } from "../mocks/auth.mock";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -43,6 +45,13 @@ export default function LoginPage() {
 
       <section className="mx-auto my-5 w-full max-w-xl rounded-2xl bg-white p-8 text-gray-900 shadow-xl">
         <h2 className="mb-8 text-center text-3xl font-semibold">Login</h2>
+
+        {isMockApiEnabled() ? (
+          <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Modo demonstração (sem backend): use usuário{" "}
+            <strong>{MOCK_LOGIN.username}</strong> e senha <strong>{MOCK_LOGIN.password}</strong>.
+          </p>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
