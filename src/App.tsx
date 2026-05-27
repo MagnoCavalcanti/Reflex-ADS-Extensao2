@@ -1,29 +1,70 @@
 import { Navigate, RouterProvider, createBrowserRouter } from "react-router";
+import RedirectIfAuthenticated from "./components/RedirectIfAuthenticated";
+import RequireAuth from "./components/RequireAuth";
+import RequireRole from "./components/RequireRole";
 import IndexPage from "./pages/index";
 import CadastroPage from "./pages/CadastroPage";
-import ContatoPage from "./pages/ContatoPage";
 import ConteudosPage from "./pages/ConteudosPage";
 import ConteudosLogicaPage from "./pages/ConteudosLogicaPage";
-import DashboardPage from "./pages/DashboardPage";
+import DashboardPage from "./pages/DashboardPage.tsx";
 import LoginPage from "./pages/LoginPage";
 import PerfilPage from "./pages/PerfilPage";
+import DashboardAlunoPage from "./pages/aluno/DashboardAlunoPage";
+import DashboardProfessorPage from "./pages/professor/DashboardProfessorPage";
 import QuizConjuntosNumericosPage from "./pages/QuizConjuntosNumericosPage";
 import QuizzMatematicaPage from "./pages/QuizzMatematicaPage";
 import QuizzesPage from "./pages/QuizzesPage";
-import RecuperarSenhaPage from "./pages/RecuperarSenhaPage";
-import RedefinirSenhaPage from "./pages/RedefinirSenhaPage";
-import SobrePage from "./pages/SobrePage";
 
 const router = createBrowserRouter([
-  { path: "/", element: <IndexPage /> },
-  { path: "/login", element: <LoginPage /> },
-  { path: "/cadastro", element: <CadastroPage /> },
-  { path: "/recuperar-senha", element: <RecuperarSenhaPage /> },
-  { path: "/redefinir-senha", element: <RedefinirSenhaPage /> },
-  { path: "/dashboard", element: <DashboardPage /> },
+  {
+    path: "/",
+    element: (
+      <RedirectIfAuthenticated>
+        <IndexPage />
+      </RedirectIfAuthenticated>
+    ),
+  },
+  {
+    path: "/login",
+    element: (
+      <RedirectIfAuthenticated>
+        <LoginPage />
+      </RedirectIfAuthenticated>
+    ),
+  },
+  {
+    path: "/cadastro",
+    element: (
+      <RedirectIfAuthenticated>
+        <CadastroPage />
+      </RedirectIfAuthenticated>
+    ),
+  },
+  {
+    path: "/dashboard",
+    element: (
+      <RequireAuth>
+        <DashboardPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: "/aluno/dashboard",
+    element: (
+      <RequireRole allowedRole="A">
+        <DashboardAlunoPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: "/professor/dashboard",
+    element: (
+      <RequireRole allowedRole="P">
+        <DashboardProfessorPage />
+      </RequireRole>
+    ),
+  },
   { path: "/perfil", element: <PerfilPage /> },
-  { path: "/sobre", element: <SobrePage /> },
-  { path: "/contato", element: <ContatoPage /> },
   { path: "/conteudos", element: <ConteudosPage /> },
   { path: "/conteudos/logica-de-programacao", element: <ConteudosLogicaPage /> },
   { path: "/quizzes", element: <QuizzesPage /> },

@@ -18,11 +18,7 @@ import type {
   RegisterData,
   User,
 } from "../types/auth.types";
-import type {
-  ChangePasswordData,
-  UpdateProfileData,
-  UserProfile,
-} from "../types/profile.types";
+import { normalizeUserRole } from "../utils/auth";
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -51,21 +47,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const storedToken = localStorage.getItem(TOKEN_KEY);
 
-    if (!storedToken) {
-      setIsLoading(false);
-      return;
-    }
-
-    api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
-    setToken(storedToken);
+    if (storedToken) {
+      api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
 
     const bootstrap = async () => {
       try {
         const payload = JSON.parse(atob(storedToken.split(".")[1]));
+        const typeUser = normalizeUserRole(payload.type_user);
+
+        if (!typeUser) {
+          throw new Error("Invalid user role");
+        }
+
+        setToken(storedToken);
         setUser({
           user_id: payload.user_id,
           username: payload.sub ?? payload.username,
-          type_user: payload.type_user,
+          type_user: typeUser,
         });
         await refreshProfile();
       } catch {
@@ -83,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshProfile]);
 
   const login = async (credentials: LoginCredentials): Promise<void> => {
-    const formData = new FormData();
+    const formData = new URLSearchParams();
     formData.append("username", credentials.username);
     formData.append("password", credentials.password);
 
@@ -92,18 +90,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const { access_token, user_id, username, type_user } = data;
+    const typeUser = normalizeUserRole(type_user);
+
+    if (!typeUser) {
+      throw new Error("Tipo de usuário inválido.");
+    }
 
     localStorage.setItem(TOKEN_KEY, access_token);
     api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
 
     setToken(access_token);
-    setUser({ user_id, username, type_user });
-
-    try {
-      await refreshProfile();
-    } catch {
-      setProfile(null);
-    }
+    setUser({ user_id, username, type_user: typeUser });
   };
 
   const register = async (data: RegisterData): Promise<void> => {
