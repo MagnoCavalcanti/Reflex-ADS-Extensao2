@@ -11,9 +11,12 @@ import LoginPage from "./pages/LoginPage";
 import PerfilPage from "./pages/PerfilPage";
 import DashboardAlunoPage from "./pages/aluno/DashboardAlunoPage";
 import DashboardProfessorPage from "./pages/professor/DashboardProfessorPage";
+import CursoMetricasPage from "./pages/professor/CursoMetricasPage";
 import QuizConjuntosNumericosPage from "./pages/QuizConjuntosNumericosPage";
 import QuizzMatematicaPage from "./pages/QuizzMatematicaPage";
 import QuizzesPage from "./pages/QuizzesPage";
+import CursoDetalhePage from "./pages/CursoDetalhePage";
+import ProfessorPublicoPage from "./pages/ProfessorPublicoPage";
 
 const router = createBrowserRouter([
   {
@@ -64,6 +67,16 @@ const router = createBrowserRouter([
       </RequireRole>
     ),
   },
+  {
+    path: "/professor/cursos/:courseId/metricas",
+    element: (
+      <RequireRole allowedRole="P">
+        <CursoMetricasPage />
+      </RequireRole>
+    ),
+  },
+  { path: "/professores/:professorId", element: <ProfessorPublicoPage /> },
+  { path: "/cursos/:courseId", element: <CursoDetalhePage /> },
   { path: "/perfil", element: <PerfilPage /> },
   { path: "/conteudos", element: <ConteudosPage /> },
   { path: "/conteudos/logica-de-programacao", element: <ConteudosLogicaPage /> },

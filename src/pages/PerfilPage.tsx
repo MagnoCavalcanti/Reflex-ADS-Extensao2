@@ -4,7 +4,7 @@ import CourseProgressCard from "../components/CourseProgressCard";
 import Navbar from "../components/Navbar";
 import UserAvatar from "../components/UserAvatar";
 import { useAuth } from "../contexts/AuthContext";
-import { fetchCourseProgress, fetchEnrollments } from "../services/meService";
+import { fetchMyProgress as fetchCourseProgress } from "../services/meService";
 import type { CourseProgress, Enrollment } from "../types/enrollment.types";
 import { getApiErrorMessage } from "../utils/apiError";
 
@@ -193,7 +193,8 @@ export default function PerfilPage() {
     return <Navigate to="/login" replace />;
   }
 
-  const displayName = fullname.trim() || profile?.fullname || "Usuário";
+// Opção 1: Usando interrogação antes do ponto (mais limpo)
+const displayName = fullname?.trim() || profile?.fullname || "Usuário";
 
   return (
     <main className="flex min-h-screen min-w-screen flex-col bg-linear-to-b from-slate-50 to-gray-100 text-gray-900">
