@@ -1,60 +1,100 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import Navbar from "../components/Navbar";
+import { fetchCourses } from "../services/courseService";
+import type { Course } from "../types/course.types";
+import { getApiErrorMessage } from "../utils/apiError";
 
 export default function ConteudosPage() {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [search, setSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const data = await fetchCourses(search ? { search } : undefined);
+        if (!cancelled) setCourses(data);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(getApiErrorMessage(err, "Não foi possível carregar os conteúdos."));
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    const timeout = window.setTimeout(() => {
+      void load();
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [search]);
+
   return (
-    <main className="min-h-screen min-w-screen bg-gray-50 text-gray-800">
+    <main className="flex min-h-screen min-w-screen flex-col bg-gray-50 text-gray-800">
       <Navbar />
 
-      <section className="bg-linear-to-r from-blue-700 via-indigo-800 to-purple-600 px-6 py-24 text-center text-white">
+      <section className="bg-linear-to-r from-blue-700 via-indigo-800 to-purple-600 px-6 py-16 text-center text-white">
         <div className="mx-auto max-w-4xl">
-          <h1 className="mb-6 text-5xl font-bold">
+          <h1 className="mb-4 text-4xl font-bold md:text-5xl">
             Explorar <span className="text-amber-300">Conteúdos</span>
           </h1>
-          <p className="mx-auto mb-8 max-w-3xl text-lg leading-8">
-            Descubra materiais educacionais criados pelos alunos de ADS para apoiar seu aprendizado em
-            <strong> lógica de programação, matemática e ciências da computação</strong>.
+          <p className="text-lg leading-relaxed text-white/95">
+            Catálogo de cursos disponíveis na plataforma.
           </p>
-          <button className="rounded-full bg-white px-8 py-3 font-semibold text-blue-700">Voltar ao Início</button>
         </div>
       </section>
 
-      <section className="bg-white px-6 py-12">
-        <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
-          <article className="rounded-2xl bg-blue-500 p-6 text-center text-white">
-            <h3 className="mb-2 text-xl font-semibold">Lógica de Programação</h3>
-          </article>
-          <article className="rounded-2xl bg-green-500 p-6 text-center text-white">
-            <h3 className="mb-2 text-xl font-semibold">Matemática</h3>
-          </article>
-          <article className="rounded-2xl bg-purple-500 p-6 text-center text-white">
-            <h3 className="mb-2 text-xl font-semibold">Ciências da Computação</h3>
-          </article>
-        </div>
-      </section>
+      <section className="mx-auto w-full max-w-5xl px-6 py-12">
+        <label htmlFor="search" className="mb-2 block text-sm font-medium text-gray-600">
+          Buscar cursos
+        </label>
+        <input
+          id="search"
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Digite para buscar..."
+          className="mb-8 w-full rounded-full border-2 border-gray-200 px-6 py-3 outline-none focus:border-violet-500"
+        />
 
-      <section className="px-6 py-12">
-        <div className="mx-auto max-w-3xl">
-          <h2 className="mb-6 text-center text-3xl font-bold">Buscar Conteúdos</h2>
-          <input
-            type="text"
-            placeholder="Digite para buscar..."
-            className="w-full rounded-full border-2 border-gray-200 px-6 py-4 outline-none focus:border-violet-500"
-          />
-        </div>
-      </section>
-
-      <section className="bg-white px-6 py-14">
-        <div className="mx-auto max-w-3xl">
-          <h2 className="mb-8 text-center text-3xl font-bold">Videoaulas Mais Vistas</h2>
-          <div className="space-y-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <article key={i} className="flex items-center gap-4 rounded-lg border-2 border-gray-200 bg-white px-6 py-4">
-                <span className="text-blue-500">▶</span>
-                <span className="font-medium">Videoaula</span>
+        {isLoading ? (
+          <p className="text-center text-gray-500">Carregando...</p>
+        ) : error ? (
+          <p className="rounded-lg bg-red-50 px-4 py-3 text-center text-sm text-red-600">
+            {error}
+          </p>
+        ) : courses.length === 0 ? (
+          <p className="text-center text-gray-500">Nenhum curso encontrado.</p>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {courses.map((course) => (
+              <article
+                key={course.course_id}
+                className="rounded-xl border border-gray-200 bg-white p-6 shadow-md"
+              >
+                <h3 className="mb-2 text-lg font-semibold">{course.title}</h3>
+                <p className="mb-4 text-sm text-gray-600 line-clamp-3">{course.description}</p>
+                <Link
+                  to={`/cursos/${course.course_id}`}
+                  className="text-sm font-semibold text-indigo-600 hover:underline"
+                >
+                  Ver detalhes →
+                </Link>
               </article>
             ))}
           </div>
-        </div>
+        )}
       </section>
     </main>
   );

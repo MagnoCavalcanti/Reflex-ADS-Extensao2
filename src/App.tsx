@@ -10,13 +10,12 @@ import DashboardPage from "./pages/DashboardPage.tsx";
 import LoginPage from "./pages/LoginPage";
 import PerfilPage from "./pages/PerfilPage";
 import DashboardAlunoPage from "./pages/aluno/DashboardAlunoPage";
+import CursoModulosPage from "./pages/professor/CursoMetricasPage";
 import DashboardProfessorPage from "./pages/professor/DashboardProfessorPage";
-import CursoMetricasPage from "./pages/professor/CursoMetricasPage";
 import QuizConjuntosNumericosPage from "./pages/QuizConjuntosNumericosPage";
 import QuizzMatematicaPage from "./pages/QuizzMatematicaPage";
 import QuizzesPage from "./pages/QuizzesPage";
 import CursoDetalhePage from "./pages/CursoDetalhePage";
-import ProfessorPublicoPage from "./pages/ProfessorPublicoPage";
 
 const router = createBrowserRouter([
   {
@@ -68,17 +67,37 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: "/professor/cursos/:courseId/metricas",
+    path: "/professor/cursos/:courseId/modulos",
     element: (
       <RequireRole allowedRole="P">
-        <CursoMetricasPage />
+        <CursoModulosPage />
       </RequireRole>
     ),
   },
-  { path: "/professores/:professorId", element: <ProfessorPublicoPage /> },
-  { path: "/cursos/:courseId", element: <CursoDetalhePage /> },
-  { path: "/perfil", element: <PerfilPage /> },
-  { path: "/conteudos", element: <ConteudosPage /> },
+  {
+    path: "/cursos/:courseId",
+    element: (
+      <RequireAuth>
+        <CursoDetalhePage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: "/perfil",
+    element: (
+      <RequireAuth>
+        <PerfilPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: "/conteudos",
+    element: (
+      <RequireAuth>
+        <ConteudosPage />
+      </RequireAuth>
+    ),
+  },
   { path: "/conteudos/logica-de-programacao", element: <ConteudosLogicaPage /> },
   { path: "/quizzes", element: <QuizzesPage /> },
   { path: "/quizzes/matematica", element: <QuizzMatematicaPage /> },

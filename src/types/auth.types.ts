@@ -1,9 +1,3 @@
-import type {
-  ChangePasswordData,
-  UpdateProfileData,
-  UserProfile,
-} from "./profile.types";
-
 export type TypeUser = "A" | "P";
 
 export interface User {
@@ -28,14 +22,10 @@ export interface RegisterData {
 
 export interface AuthContextType {
   user: User | null;
-  profile: UserProfile | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
-  refreshProfile: () => Promise<void>;
-  updateProfile: (data: UpdateProfileData) => Promise<UserProfile>;
-  changePassword: (data: ChangePasswordData) => Promise<void>;
 }
