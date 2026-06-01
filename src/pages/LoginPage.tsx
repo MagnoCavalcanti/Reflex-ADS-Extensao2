@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
-import { isMockApiEnabled } from "../config/env";
+import { Link, useNavigate } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
-import { MOCK_LOGIN } from "../mocks/auth.mock";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -26,7 +24,8 @@ export default function LoginPage() {
         typeof err === "object" &&
         err !== null &&
         "response" in err &&
-        typeof (err as { response?: { data?: { detail?: string } } }).response?.data?.detail === "string"
+        typeof (err as { response?: { data?: { detail?: string } } }).response?.data
+          ?.detail === "string"
       ) {
         setError((err as { response: { data: { detail: string } } }).response.data.detail);
       } else {
@@ -45,13 +44,6 @@ export default function LoginPage() {
 
       <section className="mx-auto my-5 w-full max-w-xl rounded-2xl bg-white p-8 text-gray-900 shadow-xl">
         <h2 className="mb-8 text-center text-3xl font-semibold">Login</h2>
-
-        {isMockApiEnabled() ? (
-          <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Modo demonstração (sem backend): use usuário{" "}
-            <strong>{MOCK_LOGIN.username}</strong> e senha <strong>{MOCK_LOGIN.password}</strong>.
-          </p>
-        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -83,9 +75,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
-              {error}
-            </p>
+            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
           )}
 
           <button
@@ -96,12 +86,20 @@ export default function LoginPage() {
             {isLoading ? "Entrando..." : "Login"}
           </button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-gray-600">
+          Ainda não tem conta?{" "}
+          <Link to="/cadastro" className="font-semibold text-purple-700 hover:text-purple-900">
+            Criar conta
+          </Link>
+        </p>
       </section>
 
       <section className="mx-auto my-8 max-w-4xl px-4 text-center">
         <h2 className="text-2xl font-normal leading-relaxed">
-          Um espaço para explorar tecnologia, matemática e ciência da computação de forma prática e interativa.
-          Aqui você encontra materiais, exercícios e simuladores pensados para apoiar sua jornada.
+          Um espaço para explorar tecnologia, matemática e ciência da computação de forma prática e
+          interativa. Aqui você encontra materiais, exercícios e simuladores pensados para apoiar sua
+          jornada.
         </h2>
       </section>
     </main>

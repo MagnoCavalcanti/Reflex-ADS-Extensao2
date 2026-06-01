@@ -23,14 +23,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Recupera token do localStorage na inicialização
   useEffect(() => {
     const storedToken = localStorage.getItem(TOKEN_KEY);
 
     if (storedToken) {
       api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
 
-      // Decodifica o payload do JWT para recuperar dados do usuário
       try {
         const payload = JSON.parse(atob(storedToken.split(".")[1]));
         const typeUser = normalizeUserRole(payload.type_user);
@@ -46,9 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           type_user: typeUser,
         });
       } catch {
-        // Token corrompido — limpa tudo
         localStorage.removeItem(TOKEN_KEY);
         delete api.defaults.headers.common["Authorization"];
+        setToken(null);
+        setUser(null);
       }
     }
 
@@ -60,7 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     formData.append("username", credentials.username);
     formData.append("password", credentials.password);
 
-    // Lança o erro para o componente tratar e exibir mensagem ao usuário
     const { data } = await api.post("/auth/login", formData, {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
@@ -80,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (data: RegisterData): Promise<void> => {
-    // Lança o erro para o componente tratar e exibir mensagem ao usuário
     await api.post("/auth/register", data, {
       headers: { "Content-Type": "application/json" },
     });
