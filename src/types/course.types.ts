@@ -22,6 +22,11 @@ export interface CourseLesson {
   module_id: number;
 }
 
+export interface LessonDetail extends CourseLesson {
+  description?: string | null;
+  video_url?: string | null;
+}
+
 export type CreateCourseData = {
   title: string;
   description: string;
@@ -69,6 +74,8 @@ type ApiLessonPayload = {
   title: string;
   content_type: string;
   module_id: number;
+  description?: string | null;
+  video_url?: string | null;
 };
 
 export function mapCourse(payload: ApiCoursePayload): Course {
@@ -117,5 +124,13 @@ export function mapCourseLesson(payload: ApiLessonPayload): CourseLesson {
     title: payload.title,
     content_type: payload.content_type,
     module_id: payload.module_id,
+  };
+}
+
+export function mapLessonDetail(payload: ApiLessonPayload): LessonDetail {
+  return {
+    ...mapCourseLesson(payload),
+    description: payload.description ?? null,
+    video_url: payload.video_url ?? null,
   };
 }

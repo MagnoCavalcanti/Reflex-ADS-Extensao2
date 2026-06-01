@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import Navbar from "../../components/Navbar";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -7,11 +7,14 @@ import {
   createLesson,
   createLessonVideo,
   createModule,
+  fetchCourseDetail,
+  fetchCourseModules,
+  fetchLessons,
 } from "../../services/courseService";
 import { getApiErrorMessage } from "../../utils/apiError";
 
 const fieldClass =
-  "w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none focus:border-blue-500";
+  "w-full rounded-lg border-2 border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none focus:border-emerald-500";
 
 const labelClass = "mb-2 block text-sm font-medium text-gray-600";
 
@@ -21,6 +24,16 @@ const CATEGORY_OPTIONS = [
   { value: "Matemática", label: "Matemática" },
   { value: "Ciências da Computação", label: "Ciências da Computação" },
 ] as const;
+
+const EDITOR_TABS = [
+  { id: "informacoes", label: "Informações" },
+  { id: "conteudo", label: "Conteúdo" },
+  { id: "exercicios", label: "Exercícios" },
+  { id: "alunos", label: "Alunos" },
+] as const;
+
+type EditorTab = (typeof EDITOR_TABS)[number]["id"];
+type CourseStatus = "rascunho" | "publicado";
 
 type LessonFormItem = {
   clientId: string;
@@ -40,6 +53,7 @@ type CourseFormState = {
   description: string;
   area: string;
   coverImageUrl: string;
+  status: CourseStatus;
 };
 
 function createClientId(): string {
@@ -71,27 +85,24 @@ const initialCourseForm: CourseFormState = {
   description: "",
   area: "",
   coverImageUrl: "",
+  status: "rascunho",
 };
+
+function isEditorTab(value: string | null): value is EditorTab {
+  return EDITOR_TABS.some((tab) => tab.id === value);
+}
 
 function validateForm(
   courseForm: CourseFormState,
   modules: ModuleFormItem[],
 ): string | null {
-  if (!courseForm.title.trim()) {
-    return "Informe o título do curso.";
-  }
-  if (!courseForm.description.trim()) {
-    return "Informe a descrição do curso.";
-  }
-  if (!courseForm.area) {
-    return "Selecione uma categoria.";
-  }
+  if (!courseForm.title.trim()) return "Informe o título do curso.";
+  if (!courseForm.description.trim()) return "Informe a descrição do curso.";
+  if (!courseForm.area) return "Selecione uma categoria.";
 
   for (let i = 0; i < modules.length; i += 1) {
     const module = modules[i];
-    if (!module.title.trim()) {
-      return `Informe o título do módulo ${i + 1}.`;
-    }
+    if (!module.title.trim()) return `Informe o título do módulo ${i + 1}.`;
     for (let j = 0; j < module.lessons.length; j += 1) {
       if (!module.lessons[j].title.trim()) {
         return `Informe o título da aula ${j + 1} do módulo ${i + 1}.`;
@@ -106,6 +117,7 @@ export default function GerenciarCursoPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { courseId } = useParams<{ courseId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const isEditMode = useMemo(() => {
     if (!courseId || courseId === "novo") return false;
@@ -114,17 +126,91 @@ export default function GerenciarCursoPage() {
   }, [courseId]);
 
   const parsedCourseId = isEditMode ? Number(courseId) : null;
+  const tabParam = searchParams.get("aba");
+  const activeTab: EditorTab = isEditorTab(tabParam) ? tabParam : "informacoes";
 
   const [courseForm, setCourseForm] = useState<CourseFormState>(initialCourseForm);
   const [modules, setModules] = useState<ModuleFormItem[]>([createEmptyModule()]);
+  const [isLoadingCourse, setIsLoadingCourse] = useState(isEditMode);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
-  const pageTitle = isEditMode ? "Editar curso" : "Criar novo curso";
-  const pageSubtitle = isEditMode
-    ? "Atualize as informações e a estrutura de módulos e aulas."
-    : "Preencha os dados do curso e organize módulos e aulas.";
+  const pageTitle = isEditMode
+    ? courseForm.title.trim() || "Editar curso"
+    : "Novo curso";
+
+  const setActiveTab = (tab: EditorTab) => {
+    setSearchParams({ aba: tab }, { replace: true });
+  };
+
+  useEffect(() => {
+    if (!isEditMode || parsedCourseId == null) return;
+
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoadingCourse(true);
+      setLoadError(null);
+
+      try {
+        const [course, courseModules, allLessons] = await Promise.all([
+          fetchCourseDetail(parsedCourseId),
+          fetchCourseModules(parsedCourseId),
+          fetchLessons(),
+        ]);
+
+        if (cancelled) return;
+
+        const moduleIds = new Set(courseModules.map((m) => m.module_id));
+        const courseLessons = allLessons.filter((l) => moduleIds.has(l.module_id));
+
+        setCourseForm({
+          title: course.title,
+          description: course.description,
+          area: course.area ?? "",
+          coverImageUrl: "",
+          status: "publicado",
+        });
+
+        if (courseModules.length === 0) {
+          setModules([createEmptyModule()]);
+        } else {
+          setModules(
+            courseModules.map((module) => {
+              const moduleLessons = courseLessons
+                .filter((l) => l.module_id === module.module_id)
+                .map((lesson) => ({
+                  clientId: createClientId(),
+                  title: lesson.title,
+                  description: "",
+                  videoUrl: "",
+                }));
+
+              return {
+                clientId: createClientId(),
+                title: module.title,
+                lessons: moduleLessons.length > 0 ? moduleLessons : [createEmptyLesson()],
+              };
+            }),
+          );
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setLoadError(getApiErrorMessage(err, "Não foi possível carregar o curso."));
+        }
+      } finally {
+        if (!cancelled) setIsLoadingCourse(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditMode, parsedCourseId]);
 
   const updateCourseField = <K extends keyof CourseFormState>(
     field: K,
@@ -133,9 +219,7 @@ export default function GerenciarCursoPage() {
     setCourseForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const addModule = () => {
-    setModules((prev) => [...prev, createEmptyModule()]);
-  };
+  const addModule = () => setModules((prev) => [...prev, createEmptyModule()]);
 
   const removeModule = (moduleClientId: string) => {
     setModules((prev) => {
@@ -169,9 +253,7 @@ export default function GerenciarCursoPage() {
         if (module.lessons.length <= 1) return module;
         return {
           ...module,
-          lessons: module.lessons.filter(
-            (lesson) => lesson.clientId !== lessonClientId,
-          ),
+          lessons: module.lessons.filter((lesson) => lesson.clientId !== lessonClientId),
         };
       }),
     );
@@ -189,9 +271,7 @@ export default function GerenciarCursoPage() {
         return {
           ...module,
           lessons: module.lessons.map((lesson) =>
-            lesson.clientId === lessonClientId
-              ? { ...lesson, [field]: value }
-              : lesson,
+            lesson.clientId === lessonClientId ? { ...lesson, [field]: value } : lesson,
           ),
         };
       }),
@@ -211,299 +291,270 @@ export default function GerenciarCursoPage() {
 
     if (!import.meta.env.VITE_API_URL) {
       setSubmitError(
-        "VITE_API_URL não está configurada. Crie o arquivo .env.local com a URL da API (veja README.md).",
+        "VITE_API_URL não está configurada. Crie o arquivo .env.local com a URL da API.",
       );
       return;
     }
 
     if (!user?.user_id) {
-      setSubmitError(
-        "Sessão inválida: o ID do professor não foi encontrado no token. Saia e entre novamente.",
-      );
+      setSubmitError("Sessão inválida. Saia e entre novamente.");
       return;
     }
 
     if (user.type_user !== "P") {
-      setSubmitError("Apenas usuários do tipo professor podem publicar cursos.");
+      setSubmitError("Apenas professores podem salvar cursos.");
       return;
     }
 
     setIsSubmitting(true);
 
-    const payload = {
-      mode: isEditMode ? "update" : "create",
-      courseId: parsedCourseId,
-      course: {
-        title: courseForm.title.trim(),
-        description: courseForm.description.trim(),
-        area: courseForm.area,
-        cover_image_url: courseForm.coverImageUrl.trim() || null,
-        professor_id: user.user_id,
-      },
-      modules: modules.map((module, moduleIndex) => ({
-        order: moduleIndex + 1,
-        title: module.title.trim(),
-        lessons: module.lessons.map((lesson, lessonIndex) => ({
-          order: lessonIndex + 1,
-          title: lesson.title.trim(),
-          description: lesson.description.trim(),
-          video_url: lesson.videoUrl.trim(),
-        })),
-      })),
-    };
-
     try {
-      if (isEditMode) {
+      if (isEditMode && parsedCourseId != null) {
         console.log(
-          `[GerenciarCurso] PUT /courses/${parsedCourseId} — conectar API:`,
-          payload,
+          `[Editor] PUT /courses/${parsedCourseId} — integração pendente:`,
+          { courseForm, modules },
         );
-        setSubmitSuccess(
-          "Dados validados. A integração de edição (PUT) será conectada em breve.",
-        );
+        setSubmitSuccess("Alterações validadas. A API de edição será conectada em breve.");
         return;
       }
 
       const createdCourse = await createCourse({
-        title: payload.course.title,
-        description: payload.course.description,
-        area: payload.course.area,
-        professor_id: payload.course.professor_id,
+        title: courseForm.title.trim(),
+        description: courseForm.description.trim(),
+        area: courseForm.area,
+        professor_id: user.user_id,
       });
 
-      for (const module of payload.modules) {
+      for (const module of modules) {
         const createdModule = await createModule({
-          title: module.title,
+          title: module.title.trim(),
           course_id: createdCourse.course_id,
         });
 
         for (const lesson of module.lessons) {
           const createdLesson = await createLesson({
-            title: lesson.title,
+            title: lesson.title.trim(),
             content_type: "video",
             module_id: createdModule.module_id,
           });
 
-          if (lesson.video_url) {
+          if (lesson.videoUrl.trim()) {
             await createLessonVideo({
               lesson_id: createdLesson.lesson_id,
-              video_url: lesson.video_url,
+              video_url: lesson.videoUrl.trim(),
             });
           }
         }
       }
 
-      setSubmitSuccess("Curso publicado com sucesso!");
+      setSubmitSuccess("Curso criado com sucesso!");
       window.setTimeout(() => {
-        navigate("/professor/dashboard", { replace: true });
-      }, 1200);
+        navigate(`/professor/cursos/${createdCourse.course_id}?aba=conteudo`, {
+          replace: true,
+        });
+      }, 900);
     } catch (err: unknown) {
-      setSubmitError(
-        getApiErrorMessage(err, "Não foi possível publicar o curso. Tente novamente."),
-      );
+      setSubmitError(getApiErrorMessage(err, "Não foi possível salvar o curso."));
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const showSaveActions = activeTab === "informacoes" || activeTab === "conteudo";
+
   return (
-    <main className="flex min-h-screen min-w-screen flex-col bg-linear-to-b from-slate-50 to-gray-100 text-gray-900">
+    <main className="flex min-h-screen flex-col bg-slate-50 text-gray-900">
       <Navbar />
 
-      <section className="bg-linear-to-r from-emerald-700 via-teal-700 to-blue-700 px-6 py-12 text-center text-white">
-        <div className="mx-auto max-w-3xl">
-          <h1 className="mb-2 text-3xl font-bold md:text-4xl">{pageTitle}</h1>
-          <p className="text-lg text-white/90">{pageSubtitle}</p>
-        </div>
-      </section>
-
-      <div className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
-        <p className="mb-8">
+      <div className="border-b border-gray-200 bg-white">
+        <div className="mx-auto max-w-5xl px-6 py-6">
           <Link
-            to="/professor/dashboard"
-            className="text-sm font-medium text-blue-700 hover:underline"
+            to="/professor/cursos"
+            className="text-sm font-medium text-emerald-700 hover:underline"
           >
-            ← Voltar ao dashboard
+            ← Meus cursos
           </Link>
-        </p>
+          <h1 className="mt-3 text-2xl font-bold md:text-3xl">{pageTitle}</h1>
+          {!isEditMode ? (
+            <p className="mt-1 text-sm text-gray-600">
+              Preencha as abas abaixo e publique quando estiver pronto.
+            </p>
+          ) : null}
+        </div>
+      </div>
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-8">
-          <article className="rounded-xl border border-gray-200 bg-white p-8 shadow-md">
-            <h2 className="mb-6 text-xl font-semibold">Informações básicas</h2>
+      <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">
+        <nav className="mb-6 flex flex-wrap gap-2 border-b border-gray-200">
+          {EDITOR_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={[
+                "rounded-t-lg px-4 py-2.5 text-sm font-medium transition-colors",
+                activeTab === tab.id
+                  ? "border-b-2 border-emerald-600 text-emerald-800"
+                  : "text-gray-600 hover:text-gray-900",
+              ].join(" ")}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="title" className={labelClass}>
-                  Título do curso
-                </label>
-                <input
-                  id="title"
-                  type="text"
-                  value={courseForm.title}
-                  onChange={(e) => updateCourseField("title", e.target.value)}
-                  className={fieldClass}
-                  placeholder="Ex.: Lógica de Programação"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="description" className={labelClass}>
-                  Descrição
-                </label>
-                <textarea
-                  id="description"
-                  value={courseForm.description}
-                  onChange={(e) =>
-                    updateCourseField("description", e.target.value)
-                  }
-                  className={`${fieldClass} min-h-[120px] resize-y`}
-                  placeholder="Descreva o objetivo e o conteúdo do curso."
-                />
-              </div>
-
-              <div>
-                <label htmlFor="area" className={labelClass}>
-                  Categoria
-                </label>
-                <select
-                  id="area"
-                  value={courseForm.area}
-                  onChange={(e) => updateCourseField("area", e.target.value)}
-                  className={fieldClass}
-                >
-                  {CATEGORY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="coverImageUrl" className={labelClass}>
-                  URL da imagem de capa
-                </label>
-                <input
-                  id="coverImageUrl"
-                  type="text"
-                  value={courseForm.coverImageUrl}
-                  onChange={(e) =>
-                    updateCourseField("coverImageUrl", e.target.value)
-                  }
-                  className={fieldClass}
-                  placeholder="https://exemplo.com/capa.jpg"
-                />
-              </div>
-
-              {courseForm.coverImageUrl.trim() ? (
-                <div className="overflow-hidden rounded-lg border border-gray-200">
-                  <img
-                    src={courseForm.coverImageUrl.trim()}
-                    alt="Pré-visualização da capa"
-                    className="h-40 w-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
-                </div>
-              ) : null}
-            </div>
-          </article>
-
-          <article className="rounded-xl border border-gray-200 bg-white p-8 shadow-md">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-              <h2 className="text-xl font-semibold">Módulos e aulas</h2>
-              <button
-                type="button"
-                onClick={addModule}
-                className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-100"
-              >
-                + Adicionar módulo
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {modules.map((module, moduleIndex) => (
-                <section
-                  key={module.clientId}
-                  className="rounded-lg border border-gray-200 bg-gray-50/80 p-5"
-                >
-                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-                      Módulo {moduleIndex + 1}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => removeModule(module.clientId)}
-                      disabled={modules.length <= 1}
-                      className="text-sm font-medium text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Remover módulo
-                    </button>
-                  </div>
-
-                  <div className="mb-5">
-                    <label
-                      htmlFor={`module-title-${module.clientId}`}
-                      className={labelClass}
-                    >
-                      Título do módulo
+        {isLoadingCourse ? (
+          <p className="text-gray-500">Carregando curso...</p>
+        ) : loadError ? (
+          <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{loadError}</p>
+        ) : (
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
+            {activeTab === "informacoes" ? (
+              <article className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-6 text-lg font-semibold">Informações gerais</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="title" className={labelClass}>
+                      Título
                     </label>
                     <input
-                      id={`module-title-${module.clientId}`}
+                      id="title"
                       type="text"
-                      value={module.title}
-                      onChange={(e) =>
-                        updateModuleTitle(module.clientId, e.target.value)
-                      }
+                      value={courseForm.title}
+                      onChange={(e) => updateCourseField("title", e.target.value)}
                       className={fieldClass}
-                      placeholder="Ex.: Introdução"
                     />
                   </div>
+                  <div>
+                    <label htmlFor="description" className={labelClass}>
+                      Descrição
+                    </label>
+                    <textarea
+                      id="description"
+                      value={courseForm.description}
+                      onChange={(e) => updateCourseField("description", e.target.value)}
+                      className={`${fieldClass} min-h-[120px] resize-y`}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="area" className={labelClass}>
+                      Categoria
+                    </label>
+                    <select
+                      id="area"
+                      value={courseForm.area}
+                      onChange={(e) => updateCourseField("area", e.target.value)}
+                      className={fieldClass}
+                    >
+                      {CATEGORY_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="coverImageUrl" className={labelClass}>
+                      URL da capa
+                    </label>
+                    <input
+                      id="coverImageUrl"
+                      type="url"
+                      value={courseForm.coverImageUrl}
+                      onChange={(e) => updateCourseField("coverImageUrl", e.target.value)}
+                      className={fieldClass}
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="status" className={labelClass}>
+                      Status
+                    </label>
+                    <select
+                      id="status"
+                      value={courseForm.status}
+                      onChange={(e) =>
+                        updateCourseField("status", e.target.value as CourseStatus)
+                      }
+                      className={fieldClass}
+                    >
+                      <option value="rascunho">Rascunho</option>
+                      <option value="publicado">Publicado</option>
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      O status será persistido na API quando o endpoint de atualização estiver
+                      disponível.
+                    </p>
+                  </div>
+                </div>
+              </article>
+            ) : null}
 
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold text-gray-700">Aulas</h3>
-                      <button
-                        type="button"
-                        onClick={() => addLesson(module.clientId)}
-                        className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800"
-                      >
-                        + Adicionar aula
-                      </button>
-                    </div>
+            {activeTab === "conteudo" ? (
+              <article className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Conteúdo do curso</h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Módulos, aulas e links de vídeo (upload de arquivo em breve).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addModule}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-50"
+                  >
+                    + Módulo
+                  </button>
+                </div>
 
-                    {module.lessons.map((lesson, lessonIndex) => (
-                      <div
-                        key={lesson.clientId}
-                        className="rounded-lg border border-gray-200 bg-white p-4"
-                      >
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <span className="text-xs font-medium text-gray-500">
-                            Aula {lessonIndex + 1}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeLesson(module.clientId, lesson.clientId)
-                            }
-                            disabled={module.lessons.length <= 1}
-                            className="text-xs font-medium text-red-600 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-40"
+                <div className="space-y-6">
+                  {modules.map((module, moduleIndex) => (
+                    <section
+                      key={module.clientId}
+                      className="rounded-lg border border-gray-200 bg-gray-50/80 p-5"
+                    >
+                      <div className="mb-4 flex justify-between gap-3">
+                        <span className="text-sm font-semibold text-gray-500">
+                          Módulo {moduleIndex + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeModule(module.clientId)}
+                          disabled={modules.length <= 1}
+                          className="text-sm text-red-600 disabled:opacity-40"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={module.title}
+                        onChange={(e) => updateModuleTitle(module.clientId, e.target.value)}
+                        className={`${fieldClass} mb-4`}
+                        placeholder="Título do módulo"
+                      />
+                      <div className="space-y-3">
+                        {module.lessons.map((lesson, lessonIndex) => (
+                          <div
+                            key={lesson.clientId}
+                            className="rounded-lg border border-gray-200 bg-white p-4"
                           >
-                            Remover aula
-                          </button>
-                        </div>
-
-                        <div className="space-y-3">
-                          <div>
-                            <label
-                              htmlFor={`lesson-title-${lesson.clientId}`}
-                              className={labelClass}
-                            >
-                              Título da aula
-                            </label>
+                            <div className="mb-2 flex justify-between">
+                              <span className="text-xs text-gray-500">
+                                Aula {lessonIndex + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeLesson(module.clientId, lesson.clientId)
+                                }
+                                disabled={module.lessons.length <= 1}
+                                className="text-xs text-red-600 disabled:opacity-40"
+                              >
+                                Remover
+                              </button>
+                            </div>
                             <input
-                              id={`lesson-title-${lesson.clientId}`}
                               type="text"
                               value={lesson.title}
                               onChange={(e) =>
@@ -514,42 +565,11 @@ export default function GerenciarCursoPage() {
                                   e.target.value,
                                 )
                               }
-                              className={fieldClass}
+                              className={`${fieldClass} mb-2`}
+                              placeholder="Título da aula"
                             />
-                          </div>
-
-                          <div>
-                            <label
-                              htmlFor={`lesson-description-${lesson.clientId}`}
-                              className={labelClass}
-                            >
-                              Descrição da aula
-                            </label>
-                            <textarea
-                              id={`lesson-description-${lesson.clientId}`}
-                              value={lesson.description}
-                              onChange={(e) =>
-                                updateLessonField(
-                                  module.clientId,
-                                  lesson.clientId,
-                                  "description",
-                                  e.target.value,
-                                )
-                              }
-                              className={`${fieldClass} min-h-[80px] resize-y`}
-                            />
-                          </div>
-
-                          <div>
-                            <label
-                              htmlFor={`lesson-video-${lesson.clientId}`}
-                              className={labelClass}
-                            >
-                              Link do vídeo
-                            </label>
                             <input
-                              id={`lesson-video-${lesson.clientId}`}
-                              type="text"
+                              type="url"
                               value={lesson.videoUrl}
                               onChange={(e) =>
                                 updateLessonField(
@@ -560,49 +580,76 @@ export default function GerenciarCursoPage() {
                                 )
                               }
                               className={fieldClass}
-                              placeholder="https://..."
+                              placeholder="Link do vídeo (YouTube, etc.)"
                             />
                           </div>
-                        </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addLesson(module.clientId)}
+                          className="text-sm font-semibold text-emerald-700 hover:underline"
+                        >
+                          + Adicionar aula
+                        </button>
                       </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </article>
+                    </section>
+                  ))}
+                </div>
+              </article>
+            ) : null}
 
-          {submitError ? (
-            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
-              {submitError}
-            </p>
-          ) : null}
-          {submitSuccess ? (
-            <p className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
-              {submitSuccess}
-            </p>
-          ) : null}
+            {activeTab === "exercicios" ? (
+              <article className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
+                <h2 className="text-lg font-semibold">Exercícios e avaliações</h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  Quizzes e provas serão configurados aqui com os endpoints{" "}
+                  <code className="text-xs">/lessons/create/quiz</code> e perguntas da API.
+                </p>
+              </article>
+            ) : null}
 
-          <div className="flex flex-wrap gap-4">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-lg bg-linear-to-r from-purple-700 to-blue-600 px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {isSubmitting
-                ? "Salvando..."
-                : isEditMode
-                  ? "Salvar alterações"
-                  : "Publicar curso"}
-            </button>
-            <Link
-              to="/professor/dashboard"
-              className="rounded-lg border-2 border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-            >
-              Cancelar
-            </Link>
-          </div>
-        </form>
+            {activeTab === "alunos" ? (
+              <article className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
+                <h2 className="text-lg font-semibold">Alunos matriculados</h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  Matrículas, progresso e notas aparecerão quando a API expuser relatórios por
+                  curso.
+                </p>
+              </article>
+            ) : null}
+
+            {submitError ? (
+              <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{submitError}</p>
+            ) : null}
+            {submitSuccess ? (
+              <p className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
+                {submitSuccess}
+              </p>
+            ) : null}
+
+            {showSaveActions ? (
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="rounded-lg bg-emerald-700 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+                >
+                  {isSubmitting
+                    ? "Salvando..."
+                    : isEditMode
+                      ? "Salvar alterações"
+                      : "Criar curso"}
+                </button>
+                <Link
+                  to="/professor/cursos"
+                  className="rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-semibold hover:bg-gray-50"
+                >
+                  Cancelar
+                </Link>
+              </div>
+            ) : null}
+          </form>
+        )}
       </div>
     </main>
   );

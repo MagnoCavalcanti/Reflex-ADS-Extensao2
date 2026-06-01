@@ -1,22 +1,33 @@
-import { Navigate, RouterProvider, createBrowserRouter } from "react-router";
+import { Navigate, RouterProvider, createBrowserRouter, useParams } from "react-router";
 import RedirectIfAuthenticated from "./components/RedirectIfAuthenticated";
 import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
 import IndexPage from "./pages/index";
 import CadastroPage from "./pages/CadastroPage";
-import ConteudosPage from "./pages/ConteudosPage";
-import ConteudosLogicaPage from "./pages/ConteudosLogicaPage";
 import DashboardPage from "./pages/DashboardPage.tsx";
 import LoginPage from "./pages/LoginPage";
-import PerfilPage from "./pages/PerfilPage";
+import PerfilRedirect from "./components/PerfilRedirect";
+import AulaPlayerPage from "./pages/aluno/AulaPlayerPage";
+import ConfiguracoesAlunoPage from "./pages/aluno/ConfiguracoesAlunoPage";
+import CatalogoCursosPage from "./pages/aluno/CatalogoCursosPage";
+import CursoPage from "./pages/aluno/CursoPage";
 import DashboardAlunoPage from "./pages/aluno/DashboardAlunoPage";
-import CursoModulosPage from "./pages/professor/CursoMetricasPage";
+import ConfiguracoesProfessorPage from "./pages/professor/ConfiguracoesProfessorPage";
 import DashboardProfessorPage from "./pages/professor/DashboardProfessorPage";
 import GerenciarCursoPage from "./pages/professor/GerenciarCursoPage";
-import QuizConjuntosNumericosPage from "./pages/QuizConjuntosNumericosPage";
-import QuizzMatematicaPage from "./pages/QuizzMatematicaPage";
-import QuizzesPage from "./pages/QuizzesPage";
-import CursoDetalhePage from "./pages/CursoDetalhePage";
+import MeusCursosPage from "./pages/professor/MeusCursosPage";
+
+function LegacyCourseRedirect() {
+  const { courseId } = useParams<{ courseId: string }>();
+  return <Navigate to={`/curso/${courseId ?? ""}`} replace />;
+}
+
+function ProfessorModulosRedirect() {
+  const { courseId } = useParams<{ courseId: string }>();
+  return (
+    <Navigate to={`/professor/cursos/${courseId ?? ""}?aba=conteudo`} replace />
+  );
+}
 
 const router = createBrowserRouter([
   {
@@ -60,6 +71,38 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: "/aluno/configuracoes",
+    element: (
+      <RequireRole allowedRole="A">
+        <ConfiguracoesAlunoPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: "/cursos",
+    element: (
+      <RequireRole allowedRole="A">
+        <CatalogoCursosPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: "/curso/:id",
+    element: (
+      <RequireRole allowedRole="A">
+        <CursoPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: "/curso/:id/aula/:aulaId",
+    element: (
+      <RequireRole allowedRole="A">
+        <AulaPlayerPage />
+      </RequireRole>
+    ),
+  },
+  {
     path: "/professor/dashboard",
     element: (
       <RequireRole allowedRole="P">
@@ -68,12 +111,16 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: "/professor/cursos/:courseId/modulos",
+    path: "/professor/cursos",
     element: (
       <RequireRole allowedRole="P">
-        <CursoModulosPage />
+        <MeusCursosPage />
       </RequireRole>
     ),
+  },
+  {
+    path: "/professor/cursos/:courseId/modulos",
+    element: <ProfessorModulosRedirect />,
   },
   {
     path: "/professor/cursos/:courseId",
@@ -84,35 +131,28 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: "/cursos/:courseId",
+    path: "/professor/configuracoes",
     element: (
-      <RequireAuth>
-        <CursoDetalhePage />
-      </RequireAuth>
+      <RequireRole allowedRole="P">
+        <ConfiguracoesProfessorPage />
+      </RequireRole>
     ),
   },
   {
     path: "/perfil",
     element: (
       <RequireAuth>
-        <PerfilPage />
+        <PerfilRedirect />
       </RequireAuth>
     ),
   },
+  { path: "/conteudos", element: <Navigate to="/cursos" replace /> },
+  { path: "/conteudos/*", element: <Navigate to="/cursos" replace /> },
+  { path: "/quizzes", element: <Navigate to="/aluno/dashboard" replace /> },
+  { path: "/quizzes/*", element: <Navigate to="/aluno/dashboard" replace /> },
   {
-    path: "/conteudos",
-    element: (
-      <RequireAuth>
-        <ConteudosPage />
-      </RequireAuth>
-    ),
-  },
-  { path: "/conteudos/logica-de-programacao", element: <ConteudosLogicaPage /> },
-  { path: "/quizzes", element: <QuizzesPage /> },
-  { path: "/quizzes/matematica", element: <QuizzMatematicaPage /> },
-  {
-    path: "/quizzes/matematica/conjuntos-numericos",
-    element: <QuizConjuntosNumericosPage />,
+    path: "/cursos/:courseId",
+    element: <LegacyCourseRedirect />,
   },
   { path: "*", element: <Navigate to="/" replace /> },
 ]);

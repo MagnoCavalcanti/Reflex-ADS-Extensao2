@@ -2,9 +2,8 @@ import { NavLink, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 
 const studentLinks = [
-  { label: "Início", to: "/dashboard", end: true },
-  { label: "Conteúdos", to: "/conteudos", end: false },
-  { label: "Quizzes", to: "/quizzes", end: false },
+  { label: "Dashboard", to: "/aluno/dashboard", end: true },
+  { label: "Catálogo", to: "/cursos", end: false },
 ] as const;
 
 const navLinkClass =
@@ -24,18 +23,22 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
   const { isAuthenticated, logout, user } = useAuth();
 
   const isProfessor = user?.type_user === "P";
-  const homePath = isProfessor ? "/professor/dashboard" : "/dashboard";
-  const displayName =
-    user?.username != null && user.username.length > 0
-      ? user.username.charAt(0).toUpperCase() + user.username.slice(1)
-      : "Dashboard";
+  const homePath = isProfessor ? "/professor/dashboard" : "/aluno/dashboard";
 
-  const isProfessorDashboardActive =
-    location.pathname === "/professor/dashboard" && location.hash !== "#seus-cursos";
+  const isStudentCatalogActive =
+    location.pathname === "/cursos" || location.pathname.startsWith("/curso/");
 
-  const isProfessorCoursesActive =
-    location.pathname.startsWith("/professor/cursos") ||
-    (location.pathname === "/professor/dashboard" && location.hash === "#seus-cursos");
+  const isProfessorDashboardActive = location.pathname === "/professor/dashboard";
+
+  const isProfessorCoursesActive = location.pathname.startsWith("/professor/cursos");
+
+  const isProfessorSettingsActive = location.pathname === "/professor/configuracoes";
+
+  const isStudentSettingsActive = location.pathname === "/aluno/configuracoes";
+
+  const settingsPath = isProfessor ? "/professor/configuracoes" : "/aluno/configuracoes";
+
+  const isSettingsActive = isProfessor ? isProfessorSettingsActive : isStudentSettingsActive;
 
   const handleLogout = () => {
     logout();
@@ -57,10 +60,11 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                 end
                 className={() => linkClass(isProfessorDashboardActive)}
               >
-                {displayName}
+                Dashboard
               </NavLink>
               <NavLink
-                to="/professor/dashboard#seus-cursos"
+                to="/professor/cursos"
+                end
                 className={() => linkClass(isProfessorCoursesActive)}
               >
                 Meus cursos
@@ -75,7 +79,9 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
                 className={({ isActive }) =>
                   linkClass(
                     isActive ||
-                      (link.to === "/dashboard" && location.pathname.endsWith("/dashboard")),
+                      (link.to === "/aluno/dashboard" &&
+                        location.pathname === "/aluno/dashboard") ||
+                      (link.to === "/cursos" && isStudentCatalogActive),
                   )
                 }
               >
@@ -93,16 +99,28 @@ export default function Navbar({ showProfile = true }: NavbarProps) {
 
             {showProfile ? (
               <NavLink
-                to="/perfil"
-                className={({ isActive }) =>
+                to={settingsPath}
+                className={() =>
                   [
                     "shrink-0 rounded-full ring-2 ring-transparent transition-shadow",
-                    isActive ? "ring-emerald-500" : "hover:ring-gray-200",
+                    isSettingsActive
+                      ? isProfessor
+                        ? "ring-emerald-500"
+                        : "ring-indigo-500"
+                      : "hover:ring-gray-200",
                   ].join(" ")
                 }
-                title="Perfil"
+                title="Configurações"
+                aria-label="Configurações da conta"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-linear-to-r from-emerald-600 to-teal-600">
+                <div
+                  className={[
+                    "flex h-12 w-12 items-center justify-center rounded-full",
+                    isProfessor
+                      ? "bg-linear-to-r from-emerald-600 to-teal-600"
+                      : "bg-linear-to-r from-purple-500 to-pink-500",
+                  ].join(" ")}
+                >
                   <span className="text-xl font-bold text-white">
                     {user?.username?.charAt(0).toUpperCase()}
                   </span>
