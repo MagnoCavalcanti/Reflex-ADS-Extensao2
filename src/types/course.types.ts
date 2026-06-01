@@ -15,6 +15,42 @@ export interface CourseModule {
   course_id: number;
 }
 
+export interface CourseLesson {
+  lesson_id: number;
+  title: string;
+  content_type: string;
+  module_id: number;
+}
+
+export interface LessonDetail extends CourseLesson {
+  description?: string | null;
+  video_url?: string | null;
+}
+
+export type CreateCourseData = {
+  title: string;
+  description: string;
+  professor_id: number;
+  area?: string | null;
+  level?: string | null;
+};
+
+export type CreateModuleData = {
+  title: string;
+  course_id: number;
+};
+
+export type CreateLessonData = {
+  title: string;
+  content_type: string;
+  module_id: number;
+};
+
+export type CreateLessonVideoData = {
+  lesson_id: number;
+  video_url: string;
+};
+
 type ApiCoursePayload = {
   course_id?: number;
   id?: number;
@@ -30,6 +66,16 @@ type ApiModulePayload = {
   id?: number;
   title: string;
   course_id?: number;
+};
+
+type ApiLessonPayload = {
+  lesson_id?: number;
+  id?: number;
+  title: string;
+  content_type: string;
+  module_id: number;
+  description?: string | null;
+  video_url?: string | null;
 };
 
 export function mapCourse(payload: ApiCoursePayload): Course {
@@ -63,5 +109,28 @@ export function mapCourseModule(
     module_id: moduleId,
     title: payload.title,
     course_id: payload.course_id ?? courseId,
+  };
+}
+
+export function mapCourseLesson(payload: ApiLessonPayload): CourseLesson {
+  const lessonId = payload.lesson_id ?? payload.id;
+
+  if (lessonId == null) {
+    throw new Error("Resposta da API sem identificador da aula.");
+  }
+
+  return {
+    lesson_id: lessonId,
+    title: payload.title,
+    content_type: payload.content_type,
+    module_id: payload.module_id,
+  };
+}
+
+export function mapLessonDetail(payload: ApiLessonPayload): LessonDetail {
+  return {
+    ...mapCourseLesson(payload),
+    description: payload.description ?? null,
+    video_url: payload.video_url ?? null,
   };
 }
