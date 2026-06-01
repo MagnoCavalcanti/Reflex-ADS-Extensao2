@@ -68,16 +68,33 @@ export default function DashboardProfessorPage() {
           </article>
         </div>
 
-        <h2 className="mb-6 text-2xl font-bold">Seus cursos</h2>
+        <div
+          id="seus-cursos"
+          className="mb-6 flex scroll-mt-24 flex-wrap items-center justify-between gap-4"
+        >
+          <h2 className="text-2xl font-bold">Seus cursos</h2>
+          <Link
+            to="/professor/cursos/novo"
+            className="rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800"
+          >
+            Criar novo curso
+          </Link>
+        </div>
 
         {isLoading ? (
           <p className="text-gray-500">Carregando cursos...</p>
         ) : error ? (
           <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
         ) : myCourses.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-10 text-center text-gray-500">
-            Você ainda não possui cursos cadastrados.
-          </p>
+          <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-10 text-center">
+            <p className="text-gray-500">Você ainda não possui cursos cadastrados.</p>
+            <Link
+              to="/professor/cursos/novo"
+              className="mt-4 inline-block rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800"
+            >
+              Criar primeiro curso
+            </Link>
+          </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {myCourses.map((course) => (
@@ -89,16 +106,16 @@ export default function DashboardProfessorPage() {
                 <p className="mb-4 text-sm text-gray-600 line-clamp-2">{course.description}</p>
                 <div className="flex flex-wrap gap-2">
                   <Link
-                    to={`/cursos/${course.course_id}`}
-                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                    to={`/professor/cursos/${course.course_id}`}
+                    className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
                   >
-                    Ver curso
+                    Gerenciar curso
                   </Link>
                   <Link
                     to={`/professor/cursos/${course.course_id}/modulos`}
-                    className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
                   >
-                    Módulos
+                    Ver módulos
                   </Link>
                 </div>
               </article>
