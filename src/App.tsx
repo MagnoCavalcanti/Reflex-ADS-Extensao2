@@ -12,6 +12,7 @@ import PerfilPage from "./pages/PerfilPage";
 import DashboardAlunoPage from "./pages/aluno/DashboardAlunoPage";
 import CursoModulosPage from "./pages/professor/CursoMetricasPage";
 import DashboardProfessorPage from "./pages/professor/DashboardProfessorPage";
+import GerenciarCursoPage from "./pages/professor/GerenciarCursoPage";
 import QuizConjuntosNumericosPage from "./pages/QuizConjuntosNumericosPage";
 import QuizzMatematicaPage from "./pages/QuizzMatematicaPage";
 import QuizzesPage from "./pages/QuizzesPage";
@@ -71,6 +72,14 @@ const router = createBrowserRouter([
     element: (
       <RequireRole allowedRole="P">
         <CursoModulosPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: "/professor/cursos/:courseId",
+    element: (
+      <RequireRole allowedRole="P">
+        <GerenciarCursoPage />
       </RequireRole>
     ),
   },
