@@ -236,20 +236,21 @@ export async function fetchCourseQuizMetrics(courseId: number): Promise<CourseQu
 }
 
 export async function fetchStudentCourseProgress(): Promise<StudentCourseProgress[]> {
-  const cacheKey = "student-course-progress-endpoint-unavailable";
-  if (sessionStorage.getItem(cacheKey) === "1") {
-    return [];
-  }
+  const cacheKey = "student-course-progress-endpoint-unavailable-at";
+  const unavailableAt = Number(sessionStorage.getItem(cacheKey) ?? "0");
+  const retryWindowMs = 60_000;
+  if (unavailableAt > 0 && Date.now() - unavailableAt < retryWindowMs) return [];
 
   try {
     const { data } = await api.get<unknown>("/courses/students/me/progress");
+    sessionStorage.removeItem(cacheKey);
     if (!Array.isArray(data)) return [];
     return data.map((item) =>
       mapStudentCourseProgress(item as Parameters<typeof mapStudentCourseProgress>[0]),
     );
   } catch (err: unknown) {
     if (axios.isAxiosError(err) && err.response?.status === 404) {
-      sessionStorage.setItem(cacheKey, "1");
+      sessionStorage.setItem(cacheKey, String(Date.now()));
       return [];
     }
     throw err;

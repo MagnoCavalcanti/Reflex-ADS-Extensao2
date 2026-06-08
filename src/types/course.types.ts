@@ -9,6 +9,7 @@ export interface Course {
   cover_image_url?: string | null;
   status?: CourseStatus;
   professor_id: number;
+  professor_name?: string | null;
 }
 
 export interface CourseDetail extends Course {}
@@ -153,6 +154,7 @@ type ApiCoursePayload = {
   cover_image_url?: string | null;
   status?: CourseStatus;
   professor_id: number;
+  professor_name?: string | null;
 };
 
 type ApiModulePayload = {
@@ -261,6 +263,7 @@ export function mapCourse(payload: ApiCoursePayload): Course {
     cover_image_url: payload.cover_image_url ?? null,
     status: payload.status ?? "rascunho",
     professor_id: payload.professor_id,
+    professor_name: payload.professor_name ?? null,
   };
 }
 

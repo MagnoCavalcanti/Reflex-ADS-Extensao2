@@ -219,7 +219,9 @@ export default function CursoPage() {
                   </section>
                   <section>
                     <h2 className="text-lg font-semibold">Professor</h2>
-                    <p className="mt-2 text-gray-600">ID do professor: {course.professor_id}</p>
+                    <p className="mt-2 text-gray-600">
+                      {course.professor_name || "Professor não informado"}
+                    </p>
                   </section>
                   <section>
                     <h2 className="text-lg font-semibold">Carga horária e objetivos</h2>
