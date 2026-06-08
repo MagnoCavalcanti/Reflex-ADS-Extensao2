@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router";
 import Navbar from "../../components/Navbar";
 import {
   completeLesson,
+  fetchCompletedLessonsByCourse,
   fetchCourseDetail,
   fetchCourseModules,
   fetchLesson,
@@ -54,6 +55,7 @@ export default function AulaPlayerPage() {
   const [error, setError] = useState<string | null>(null);
   const [completeLoading, setCompleteLoading] = useState(false);
   const [completeMessage, setCompleteMessage] = useState<string | null>(null);
+  const [completedLessonIds, setCompletedLessonIds] = useState<number[]>([]);
   const [lessonQuiz, setLessonQuiz] = useState<LessonQuiz | null>(null);
   const [selectedOptionsByQuestion, setSelectedOptionsByQuestion] = useState<Record<number, number>>({});
   const [quizChecked, setQuizChecked] = useState(false);
@@ -71,6 +73,12 @@ export default function AulaPlayerPage() {
     }
     return map;
   }, [lessons]);
+
+  const completedLessonIdSet = useMemo(
+    () => new Set(completedLessonIds),
+    [completedLessonIds],
+  );
+  const isLessonCompleted = completedLessonIdSet.has(lessonId);
 
   useEffect(() => {
     if (!courseIdParam || !lessonIdParam || Number.isNaN(courseId) || Number.isNaN(lessonId)) {
@@ -109,6 +117,10 @@ export default function AulaPlayerPage() {
         setModules(modulesData);
         setLessons(courseLessons);
         setLessonQuiz(quizData);
+        const completedIds = await fetchCompletedLessonsByCourse(courseId).catch(() => []);
+        if (!cancelled) {
+          setCompletedLessonIds(completedIds);
+        }
         const existingAttempt = quizData.attempt;
         if (existingAttempt) {
           setSelectedOptionsByQuestion(existingAttempt.selected_options_by_question_id ?? {});
@@ -140,12 +152,18 @@ export default function AulaPlayerPage() {
   }, [courseId, courseIdParam, lessonId, lessonIdParam]);
 
   const handleComplete = async () => {
+    if (isLessonCompleted) {
+      setCompleteMessage("Esta aula já está concluída.");
+      return;
+    }
+
     setCompleteLoading(true);
     setCompleteMessage(null);
 
     try {
       await completeLesson(lessonId);
       setCompleteMessage("Aula marcada como concluída.");
+      setCompletedLessonIds((prev) => (prev.includes(lessonId) ? prev : [...prev, lessonId]));
     } catch (err: unknown) {
       setCompleteMessage(getApiErrorMessage(err, "Não foi possível registrar a conclusão."));
     } finally {
@@ -431,10 +449,14 @@ export default function AulaPlayerPage() {
                   <button
                     type="button"
                     onClick={handleComplete}
-                    disabled={completeLoading}
+                    disabled={completeLoading || isLessonCompleted}
                     className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
                   >
-                    {completeLoading ? "Salvando..." : "Marcar aula como concluída"}
+                    {completeLoading
+                      ? "Salvando..."
+                      : isLessonCompleted
+                        ? "Aula já concluída"
+                        : "Marcar aula como concluída"}
                   </button>
                   {completeMessage ? (
                     <p className="self-center text-sm text-green-300">{completeMessage}</p>
@@ -459,13 +481,27 @@ export default function AulaPlayerPage() {
                       <Link
                         to={`/curso/${courseId}/aula/${item.lesson_id}`}
                         className={[
-                          "block rounded-lg px-3 py-2 text-sm transition-colors",
+                          "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
                           item.lesson_id === lessonId
                             ? "bg-indigo-600 font-medium text-white"
-                            : "text-gray-300 hover:bg-gray-700",
+                            : completedLessonIdSet.has(item.lesson_id)
+                              ? "bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/60"
+                              : "text-gray-300 hover:bg-gray-700",
                         ].join(" ")}
                       >
-                        {item.title}
+                        <span className="truncate">{item.title}</span>
+                        {completedLessonIdSet.has(item.lesson_id) ? (
+                          <span
+                            className={[
+                              "ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                              item.lesson_id === lessonId
+                                ? "bg-white/20 text-white"
+                                : "bg-emerald-700/50 text-emerald-100",
+                            ].join(" ")}
+                          >
+                            Concluída
+                          </span>
+                        ) : null}
                       </Link>
                     </li>
                   ))}

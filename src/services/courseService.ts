@@ -222,14 +222,12 @@ export async function submitLessonQuizAnswers(
   quizId: number,
   answerOptionIds: number[],
 ): Promise<void> {
-  const params = new URLSearchParams();
-  params.append("lesson_id", String(lessonId));
-  params.append("quiz_id", String(quizId));
-  for (const optionId of answerOptionIds) {
-    params.append("answer_option_ids", String(optionId));
-  }
-
-  await api.post("/lessons/quiz/answer", null, { params });
+  await api.post("/lessons/quiz/answer", answerOptionIds, {
+    params: {
+      lesson_id: lessonId,
+      quiz_id: quizId,
+    },
+  });
 }
 
 export async function fetchCourseStudents(courseId: number): Promise<CourseStudent[]> {
@@ -270,4 +268,12 @@ export async function fetchStudentCourseProgress(): Promise<StudentCourseProgres
     }
     throw err;
   }
+}
+
+export async function fetchCompletedLessonsByCourse(courseId: number): Promise<number[]> {
+  const { data } = await api.get<unknown>(`/courses/${courseId}/students/me/completed-lessons`);
+  if (!data || typeof data !== "object") return [];
+  const lessonIds = (data as { lesson_ids?: unknown }).lesson_ids;
+  if (!Array.isArray(lessonIds)) return [];
+  return lessonIds.filter((value): value is number => typeof value === "number");
 }
