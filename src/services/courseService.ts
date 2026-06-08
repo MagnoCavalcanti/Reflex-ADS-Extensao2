@@ -3,14 +3,19 @@ import {
   mapCourse,
   mapCourseLesson,
   mapCourseModule,
+  mapCourseStudent,
   mapLessonDetail,
+  mapLessonQuiz,
   type Course,
   type CourseDetail,
   type CourseLesson,
   type CourseModule,
+  type CourseStudent,
   type LessonDetail,
+  type LessonQuiz,
   type CreateCourseData,
   type CreateLessonData,
+  type CreateLessonQuizData,
   type CreateLessonVideoData,
   type CreateModuleData,
 } from "../types/course.types";
@@ -154,6 +159,11 @@ export async function fetchLesson(lessonId: number): Promise<LessonDetail> {
   return mapLessonDetail(data as Parameters<typeof mapLessonDetail>[0]);
 }
 
+export async function fetchLessonQuiz(lessonId: number): Promise<LessonQuiz> {
+  const { data } = await api.get<unknown>(`/lessons/${lessonId}/quiz`);
+  return mapLessonQuiz(data as Parameters<typeof mapLessonQuiz>[0]);
+}
+
 export async function completeLesson(lessonId: number): Promise<void> {
   await api.post(`/lessons/${lessonId}`);
 }
@@ -192,4 +202,16 @@ export async function createLessonVideo(
   payload: CreateLessonVideoData,
 ): Promise<void> {
   await api.post("/lessons/create/video", payload);
+}
+
+export async function createLessonQuiz(
+  payload: CreateLessonQuizData,
+): Promise<void> {
+  await api.post("/lessons/create/quiz", payload);
+}
+
+export async function fetchCourseStudents(courseId: number): Promise<CourseStudent[]> {
+  const { data } = await api.get<unknown>(`/courses/${courseId}/students`);
+  if (!Array.isArray(data)) return [];
+  return data.map((item) => mapCourseStudent(item as Parameters<typeof mapCourseStudent>[0]));
 }

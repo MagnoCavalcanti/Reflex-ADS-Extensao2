@@ -5,14 +5,20 @@ import { useAuth } from "../../contexts/AuthContext";
 import {
   createCourse,
   createLesson,
+  createLessonQuiz,
   createLessonVideo,
   createModule,
   fetchCourseDetail,
   fetchCourseModules,
+  fetchCourseStudents,
+  fetchLessonQuiz,
   fetchLessons,
   updateCourse,
 } from "../../services/courseService";
-import type { CourseStatus } from "../../types/course.types";
+import type {
+  CourseStatus,
+  CourseStudent,
+} from "../../types/course.types";
 import { getApiErrorMessage } from "../../utils/apiError";
 
 const fieldClass =
@@ -40,12 +46,25 @@ type LessonFormItem = {
   title: string;
   description: string;
   videoUrl: string;
+  quizQuestions: QuizQuestionFormItem[];
 };
 
 type ModuleFormItem = {
   clientId: string;
   title: string;
   lessons: LessonFormItem[];
+};
+
+type QuizOptionFormItem = {
+  clientId: string;
+  option_text: string;
+  is_correct: boolean;
+};
+
+type QuizQuestionFormItem = {
+  clientId: string;
+  question_text: string;
+  options: QuizOptionFormItem[];
 };
 
 type CourseFormState = {
@@ -69,6 +88,23 @@ function createEmptyLesson(): LessonFormItem {
     title: "",
     description: "",
     videoUrl: "",
+    quizQuestions: [],
+  };
+}
+
+function createEmptyQuizOption(): QuizOptionFormItem {
+  return {
+    clientId: createClientId(),
+    option_text: "",
+    is_correct: false,
+  };
+}
+
+function createEmptyQuizQuestion(): QuizQuestionFormItem {
+  return {
+    clientId: createClientId(),
+    question_text: "",
+    options: [createEmptyQuizOption(), createEmptyQuizOption()],
   };
 }
 
@@ -188,6 +224,9 @@ export default function GerenciarCursoPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [students, setStudents] = useState<CourseStudent[]>([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [studentsError, setStudentsError] = useState<string | null>(null);
 
   const pageTitle = isEditMode
     ? courseForm.title.trim() || "Editar curso"
@@ -229,24 +268,48 @@ export default function GerenciarCursoPage() {
         if (courseModules.length === 0) {
           setModules([createEmptyModule()]);
         } else {
-          setModules(
-            courseModules.map((module) => {
+          const mappedModules = await Promise.all(
+            courseModules.map(async (module) => {
               const moduleLessons = courseLessons
                 .filter((l) => l.module_id === module.module_id)
-                .map((lesson) => ({
-                  clientId: createClientId(),
-                  title: lesson.title,
-                  description: "",
-                  videoUrl: "",
-                }));
+                .map(async (lesson) => {
+                  let quizQuestions: QuizQuestionFormItem[] = [];
+                  if (lesson.content_type === "Q") {
+                    try {
+                      const quiz = await fetchLessonQuiz(lesson.lesson_id);
+                      quizQuestions = quiz.questions.map((question) => ({
+                        clientId: createClientId(),
+                        question_text: question.question_text,
+                        options: question.options.map((option) => ({
+                          clientId: createClientId(),
+                          option_text: option.option_text,
+                          is_correct: option.is_correct,
+                        })),
+                      }));
+                    } catch {
+                      quizQuestions = [];
+                    }
+                  }
+
+                  return {
+                    clientId: createClientId(),
+                    title: lesson.title,
+                    description: "",
+                    videoUrl: lesson.video_url ?? "",
+                    quizQuestions,
+                  };
+                });
+
+              const resolvedLessons = await Promise.all(moduleLessons);
 
               return {
                 clientId: createClientId(),
                 title: module.title,
-                lessons: moduleLessons.length > 0 ? moduleLessons : [createEmptyLesson()],
+                lessons: resolvedLessons.length > 0 ? resolvedLessons : [createEmptyLesson()],
               };
             }),
           );
+          setModules(mappedModules);
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -263,6 +326,33 @@ export default function GerenciarCursoPage() {
       cancelled = true;
     };
   }, [isEditMode, parsedCourseId]);
+
+  useEffect(() => {
+    if (!isEditMode || parsedCourseId == null || activeTab !== "alunos") return;
+
+    let cancelled = false;
+    const loadStudents = async () => {
+      setIsLoadingStudents(true);
+      setStudentsError(null);
+      try {
+        const data = await fetchCourseStudents(parsedCourseId);
+        if (!cancelled) setStudents(data);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setStudentsError(
+            getApiErrorMessage(err, "Não foi possível carregar os alunos do curso."),
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoadingStudents(false);
+      }
+    };
+
+    void loadStudents();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isEditMode, parsedCourseId]);
 
   const updateCourseField = <K extends keyof CourseFormState>(
     field: K,
@@ -327,6 +417,125 @@ export default function GerenciarCursoPage() {
           ),
         };
       }),
+    );
+  };
+
+  const addQuizQuestion = (moduleClientId: string, lessonClientId: string) => {
+    setModules((prev) =>
+      prev.map((module) => {
+        if (module.clientId !== moduleClientId) return module;
+        return {
+          ...module,
+          lessons: module.lessons.map((lesson) => {
+            if (lesson.clientId !== lessonClientId) return lesson;
+            return {
+              ...lesson,
+              quizQuestions: [...lesson.quizQuestions, createEmptyQuizQuestion()],
+            };
+          }),
+        };
+      }),
+    );
+  };
+
+  const updateQuizQuestionText = (
+    moduleClientId: string,
+    lessonClientId: string,
+    questionClientId: string,
+    value: string,
+  ) => {
+    setModules((prev) =>
+      prev.map((module) =>
+        module.clientId === moduleClientId
+          ? {
+              ...module,
+              lessons: module.lessons.map((lesson) =>
+                lesson.clientId === lessonClientId
+                  ? {
+                      ...lesson,
+                      quizQuestions: lesson.quizQuestions.map((question) =>
+                        question.clientId === questionClientId
+                          ? { ...question, question_text: value }
+                          : question,
+                      ),
+                    }
+                  : lesson,
+              ),
+            }
+          : module,
+      ),
+    );
+  };
+
+  const updateQuizOption = (
+    moduleClientId: string,
+    lessonClientId: string,
+    questionClientId: string,
+    optionClientId: string,
+    value: string,
+  ) => {
+    setModules((prev) =>
+      prev.map((module) =>
+        module.clientId === moduleClientId
+          ? {
+              ...module,
+              lessons: module.lessons.map((lesson) =>
+                lesson.clientId === lessonClientId
+                  ? {
+                      ...lesson,
+                      quizQuestions: lesson.quizQuestions.map((question) =>
+                        question.clientId === questionClientId
+                          ? {
+                              ...question,
+                              options: question.options.map((option) =>
+                                option.clientId === optionClientId
+                                  ? { ...option, option_text: value }
+                                  : option,
+                              ),
+                            }
+                          : question,
+                      ),
+                    }
+                  : lesson,
+              ),
+            }
+          : module,
+      ),
+    );
+  };
+
+  const setCorrectQuizOption = (
+    moduleClientId: string,
+    lessonClientId: string,
+    questionClientId: string,
+    optionClientId: string,
+  ) => {
+    setModules((prev) =>
+      prev.map((module) =>
+        module.clientId === moduleClientId
+          ? {
+              ...module,
+              lessons: module.lessons.map((lesson) =>
+                lesson.clientId === lessonClientId
+                  ? {
+                      ...lesson,
+                      quizQuestions: lesson.quizQuestions.map((question) =>
+                        question.clientId === questionClientId
+                          ? {
+                              ...question,
+                              options: question.options.map((option) => ({
+                                ...option,
+                                is_correct: option.clientId === optionClientId,
+                              })),
+                            }
+                          : question,
+                      ),
+                    }
+                  : lesson,
+              ),
+            }
+          : module,
+      ),
     );
   };
 
@@ -406,6 +615,31 @@ export default function GerenciarCursoPage() {
                 video_url: lesson.videoUrl.trim(),
               });
             }
+
+            const quizQuestions = lesson.quizQuestions
+              .map((question) => ({
+                question_text: question.question_text.trim(),
+                options: question.options.map((option) => ({
+                  option_text: option.option_text.trim(),
+                  is_correct: option.is_correct,
+                })),
+              }))
+              .filter(
+                (question) =>
+                  question.question_text &&
+                  question.options.filter((option) => option.option_text).length >= 2 &&
+                  question.options.some((option) => option.is_correct),
+              );
+
+            if (quizQuestions.length > 0) {
+              await createLessonQuiz({
+                lesson_id: createdLesson.lesson_id,
+                questions: quizQuestions.map((question) => ({
+                  question_text: question.question_text,
+                  options: question.options.filter((option) => option.option_text),
+                })),
+              });
+            }
           }
         }
 
@@ -441,6 +675,31 @@ export default function GerenciarCursoPage() {
             await createLessonVideo({
               lesson_id: createdLesson.lesson_id,
               video_url: lesson.videoUrl.trim(),
+            });
+          }
+
+          const quizQuestions = lesson.quizQuestions
+            .map((question) => ({
+              question_text: question.question_text.trim(),
+              options: question.options.map((option) => ({
+                option_text: option.option_text.trim(),
+                is_correct: option.is_correct,
+              })),
+            }))
+            .filter(
+              (question) =>
+                question.question_text &&
+                question.options.filter((option) => option.option_text).length >= 2 &&
+                question.options.some((option) => option.is_correct),
+            );
+
+          if (quizQuestions.length > 0) {
+            await createLessonQuiz({
+              lesson_id: createdLesson.lesson_id,
+              questions: quizQuestions.map((question) => ({
+                question_text: question.question_text,
+                options: question.options.filter((option) => option.option_text),
+              })),
             });
           }
         }
@@ -681,6 +940,75 @@ export default function GerenciarCursoPage() {
                               className={fieldClass}
                               placeholder="Link do vídeo (YouTube, etc.)"
                             />
+                            <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 p-3">
+                              <p className="mb-2 text-xs font-semibold text-amber-800">
+                                Exercícios (quiz) desta aula
+                              </p>
+                              <div className="space-y-3">
+                                {lesson.quizQuestions.map((question, questionIndex) => (
+                                  <div
+                                    key={question.clientId}
+                                    className="rounded-md border border-amber-200 bg-white p-3"
+                                  >
+                                    <input
+                                      type="text"
+                                      value={question.question_text}
+                                      onChange={(e) =>
+                                        updateQuizQuestionText(
+                                          module.clientId,
+                                          lesson.clientId,
+                                          question.clientId,
+                                          e.target.value,
+                                        )
+                                      }
+                                      className={`${fieldClass} mb-2`}
+                                      placeholder={`Pergunta ${questionIndex + 1}`}
+                                    />
+                                    <div className="space-y-2">
+                                      {question.options.map((option) => (
+                                        <div key={option.clientId} className="flex gap-2">
+                                          <input
+                                            type="radio"
+                                            name={`correct-${question.clientId}`}
+                                            checked={option.is_correct}
+                                            onChange={() =>
+                                              setCorrectQuizOption(
+                                                module.clientId,
+                                                lesson.clientId,
+                                                question.clientId,
+                                                option.clientId,
+                                              )
+                                            }
+                                          />
+                                          <input
+                                            type="text"
+                                            value={option.option_text}
+                                            onChange={(e) =>
+                                              updateQuizOption(
+                                                module.clientId,
+                                                lesson.clientId,
+                                                question.clientId,
+                                                option.clientId,
+                                                e.target.value,
+                                              )
+                                            }
+                                            className={fieldClass}
+                                            placeholder="Opção de resposta"
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => addQuizQuestion(module.clientId, lesson.clientId)}
+                                  className="text-xs font-semibold text-amber-700 hover:underline"
+                                >
+                                  + Adicionar pergunta de quiz
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         ))}
                         <button
@@ -698,22 +1026,60 @@ export default function GerenciarCursoPage() {
             ) : null}
 
             {activeTab === "exercicios" ? (
-              <article className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
+              <article className="rounded-xl border border-dashed border-gray-300 bg-white p-8">
                 <h2 className="text-lg font-semibold">Exercícios e avaliações</h2>
                 <p className="mt-2 text-sm text-gray-600">
-                  Quizzes e provas serão configurados aqui com os endpoints{" "}
-                  <code className="text-xs">/lessons/create/quiz</code> e perguntas da API.
+                  Configure os quizzes diretamente em cada aula na aba Conteúdo. As perguntas
+                  definidas lá são enviadas para a API automaticamente ao salvar.
                 </p>
               </article>
             ) : null}
 
             {activeTab === "alunos" ? (
-              <article className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
+              <article className="rounded-xl border border-dashed border-gray-300 bg-white p-8">
                 <h2 className="text-lg font-semibold">Alunos matriculados</h2>
-                <p className="mt-2 text-sm text-gray-600">
-                  Matrículas, progresso e notas aparecerão quando a API expuser relatórios por
-                  curso.
-                </p>
+                {isLoadingStudents ? (
+                  <p className="mt-3 text-sm text-gray-500">Carregando alunos...</p>
+                ) : studentsError ? (
+                  <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                    {studentsError}
+                  </p>
+                ) : students.length === 0 ? (
+                  <p className="mt-3 text-sm text-gray-600">
+                    Nenhum aluno matriculado neste curso até o momento.
+                  </p>
+                ) : (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-gray-600">
+                          <th className="px-3 py-2">Nome</th>
+                          <th className="px-3 py-2">Usuário</th>
+                          <th className="px-3 py-2">E-mail</th>
+                          <th className="px-3 py-2">Data matrícula</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {students.map((enrollment) => (
+                          <tr key={enrollment.id} className="border-b border-gray-100">
+                            <td className="px-3 py-2">
+                              {enrollment.student.fullname || "Não informado"}
+                            </td>
+                            <td className="px-3 py-2">
+                              {enrollment.student.username || "Não informado"}
+                            </td>
+                            <td className="px-3 py-2">
+                              {enrollment.student.email || "Não informado"}
+                            </td>
+                            <td className="px-3 py-2">
+                              {enrollment.registration_date || "Não informado"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </article>
             ) : null}
 
