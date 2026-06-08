@@ -1,9 +1,13 @@
+export type CourseStatus = "rascunho" | "publicado";
+
 export interface Course {
   course_id: number;
   title: string;
   description: string;
   area?: string | null;
   level?: string | null;
+  cover_image_url?: string | null;
+  status?: CourseStatus;
   professor_id: number;
 }
 
@@ -13,6 +17,7 @@ export interface CourseModule {
   module_id: number;
   title: string;
   course_id: number;
+  order_index?: number;
 }
 
 export interface CourseLesson {
@@ -33,11 +38,14 @@ export type CreateCourseData = {
   professor_id: number;
   area?: string | null;
   level?: string | null;
+  cover_image_url?: string | null;
+  status?: CourseStatus;
 };
 
 export type CreateModuleData = {
   title: string;
   course_id: number;
+  order_index?: number;
 };
 
 export type CreateLessonData = {
@@ -58,6 +66,8 @@ type ApiCoursePayload = {
   description: string;
   area?: string | null;
   level?: string | null;
+  cover_image_url?: string | null;
+  status?: CourseStatus;
   professor_id: number;
 };
 
@@ -66,6 +76,7 @@ type ApiModulePayload = {
   id?: number;
   title: string;
   course_id?: number;
+  order_index?: number;
 };
 
 type ApiLessonPayload = {
@@ -91,6 +102,8 @@ export function mapCourse(payload: ApiCoursePayload): Course {
     description: payload.description,
     area: payload.area,
     level: payload.level,
+    cover_image_url: payload.cover_image_url ?? null,
+    status: payload.status ?? "rascunho",
     professor_id: payload.professor_id,
   };
 }
@@ -109,6 +122,7 @@ export function mapCourseModule(
     module_id: moduleId,
     title: payload.title,
     course_id: payload.course_id ?? courseId,
+    order_index: payload.order_index,
   };
 }
 

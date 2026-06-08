@@ -31,6 +31,17 @@ function normalizeCourseList(data: unknown): Course[] {
   if (
     data &&
     typeof data === "object" &&
+    "results" in data &&
+    Array.isArray((data as { results: unknown }).results)
+  ) {
+    return (data as { results: unknown[] }).results.map((item) =>
+      mapCourse(item as Parameters<typeof mapCourse>[0]),
+    );
+  }
+
+  if (
+    data &&
+    typeof data === "object" &&
     "items" in data &&
     Array.isArray((data as { items: unknown }).items)
   ) {
@@ -45,6 +56,17 @@ function normalizeCourseList(data: unknown): Course[] {
 function normalizeModuleList(data: unknown, courseId: number): CourseModule[] {
   if (Array.isArray(data)) {
     return data.map((item) =>
+      mapCourseModule(item as Parameters<typeof mapCourseModule>[0], courseId),
+    );
+  }
+
+  if (
+    data &&
+    typeof data === "object" &&
+    "results" in data &&
+    Array.isArray((data as { results: unknown }).results)
+  ) {
+    return (data as { results: unknown[] }).results.map((item) =>
       mapCourseModule(item as Parameters<typeof mapCourseModule>[0], courseId),
     );
   }
@@ -100,6 +122,17 @@ function normalizeLessonList(data: unknown): CourseLesson[] {
   if (
     data &&
     typeof data === "object" &&
+    "results" in data &&
+    Array.isArray((data as { results: unknown }).results)
+  ) {
+    return (data as { results: unknown[] }).results.map((item) =>
+      mapCourseLesson(item as Parameters<typeof mapCourseLesson>[0]),
+    );
+  }
+
+  if (
+    data &&
+    typeof data === "object" &&
     "items" in data &&
     Array.isArray((data as { items: unknown }).items)
   ) {
@@ -127,6 +160,14 @@ export async function completeLesson(lessonId: number): Promise<void> {
 
 export async function createCourse(payload: CreateCourseData): Promise<Course> {
   const { data } = await api.post<unknown>("/courses/", payload);
+  return mapCourse(data as Parameters<typeof mapCourse>[0]);
+}
+
+export async function updateCourse(
+  courseId: number,
+  payload: CreateCourseData,
+): Promise<Course> {
+  const { data } = await api.put<unknown>(`/courses/${courseId}`, payload);
   return mapCourse(data as Parameters<typeof mapCourse>[0]);
 }
 

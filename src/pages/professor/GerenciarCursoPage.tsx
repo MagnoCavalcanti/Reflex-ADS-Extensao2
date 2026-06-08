@@ -10,7 +10,9 @@ import {
   fetchCourseDetail,
   fetchCourseModules,
   fetchLessons,
+  updateCourse,
 } from "../../services/courseService";
+import type { CourseStatus } from "../../types/course.types";
 import { getApiErrorMessage } from "../../utils/apiError";
 
 const fieldClass =
@@ -33,8 +35,6 @@ const EDITOR_TABS = [
 ] as const;
 
 type EditorTab = (typeof EDITOR_TABS)[number]["id"];
-type CourseStatus = "rascunho" | "publicado";
-
 type LessonFormItem = {
   clientId: string;
   title: string;
@@ -170,8 +170,8 @@ export default function GerenciarCursoPage() {
           title: course.title,
           description: course.description,
           area: course.area ?? "",
-          coverImageUrl: "",
-          status: "publicado",
+          coverImageUrl: course.cover_image_url ?? "",
+          status: course.status ?? "rascunho",
         });
 
         if (courseModules.length === 0) {
@@ -310,11 +310,52 @@ export default function GerenciarCursoPage() {
 
     try {
       if (isEditMode && parsedCourseId != null) {
-        console.log(
-          `[Editor] PUT /courses/${parsedCourseId} — integração pendente:`,
-          { courseForm, modules },
+        const updatedCourse = await updateCourse(parsedCourseId, {
+          title: courseForm.title.trim(),
+          description: courseForm.description.trim(),
+          area: courseForm.area,
+          status: courseForm.status,
+          cover_image_url: courseForm.coverImageUrl.trim() || null,
+          professor_id: user.user_id,
+        });
+
+        const existingModules = await fetchCourseModules(updatedCourse.course_id);
+        const normalizedExisting = [...existingModules].sort(
+          (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
         );
-        setSubmitSuccess("Alterações validadas. A API de edição será conectada em breve.");
+
+        for (let index = 0; index < modules.length; index += 1) {
+          const module = modules[index];
+          const currentOrder = index + 1;
+          const existing = normalizedExisting[index];
+
+          if (existing && existing.title.trim() === module.title.trim()) {
+            continue;
+          }
+
+          const createdModule = await createModule({
+            title: module.title.trim(),
+            course_id: updatedCourse.course_id,
+            order_index: currentOrder,
+          });
+
+          for (const lesson of module.lessons) {
+            const createdLesson = await createLesson({
+              title: lesson.title.trim(),
+              content_type: "V",
+              module_id: createdModule.module_id,
+            });
+
+            if (lesson.videoUrl.trim()) {
+              await createLessonVideo({
+                lesson_id: createdLesson.lesson_id,
+                video_url: lesson.videoUrl.trim(),
+              });
+            }
+          }
+        }
+
+        setSubmitSuccess("Curso atualizado com sucesso!");
         return;
       }
 
@@ -322,19 +363,23 @@ export default function GerenciarCursoPage() {
         title: courseForm.title.trim(),
         description: courseForm.description.trim(),
         area: courseForm.area,
+        status: courseForm.status,
+        cover_image_url: courseForm.coverImageUrl.trim() || null,
         professor_id: user.user_id,
       });
 
-      for (const module of modules) {
+      for (let moduleIndex = 0; moduleIndex < modules.length; moduleIndex += 1) {
+        const module = modules[moduleIndex];
         const createdModule = await createModule({
           title: module.title.trim(),
           course_id: createdCourse.course_id,
+          order_index: moduleIndex + 1,
         });
 
         for (const lesson of module.lessons) {
           const createdLesson = await createLesson({
             title: lesson.title.trim(),
-            content_type: "video",
+            content_type: "V",
             module_id: createdModule.module_id,
           });
 

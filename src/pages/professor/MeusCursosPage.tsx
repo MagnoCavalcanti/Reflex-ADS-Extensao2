@@ -88,11 +88,28 @@ export default function MeusCursosPage() {
                 key={course.course_id}
                 className="flex flex-col rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
               >
+                {course.cover_image_url ? (
+                  <img
+                    src={course.cover_image_url}
+                    alt={`Capa do curso ${course.title}`}
+                    className="mb-4 h-36 w-full rounded-lg object-cover"
+                  />
+                ) : null}
                 {course.area ? (
                   <span className="mb-2 w-fit rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
                     {course.area}
                   </span>
                 ) : null}
+                <span
+                  className={[
+                    "mb-2 w-fit rounded-full px-2.5 py-0.5 text-xs font-medium",
+                    course.status === "publicado"
+                      ? "bg-blue-50 text-blue-700"
+                      : "bg-amber-50 text-amber-700",
+                  ].join(" ")}
+                >
+                  {course.status === "publicado" ? "Publicado" : "Rascunho"}
+                </span>
                 <h3 className="text-lg font-semibold">{course.title}</h3>
                 <p className="mt-2 flex-1 text-sm text-gray-600 line-clamp-3">
                   {course.description}
