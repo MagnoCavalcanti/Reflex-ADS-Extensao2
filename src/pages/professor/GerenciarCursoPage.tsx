@@ -100,17 +100,69 @@ function validateForm(
   if (!courseForm.description.trim()) return "Informe a descrição do curso.";
   if (!courseForm.area) return "Selecione uma categoria.";
 
-  for (let i = 0; i < modules.length; i += 1) {
-    const module = modules[i];
-    if (!module.title.trim()) return `Informe o título do módulo ${i + 1}.`;
-    for (let j = 0; j < module.lessons.length; j += 1) {
-      if (!module.lessons[j].title.trim()) {
-        return `Informe o título da aula ${j + 1} do módulo ${i + 1}.`;
+  const modulesWithContent = modules.filter((module) => {
+    const hasModuleTitle = module.title.trim().length > 0;
+    const hasLessonData = module.lessons.some(
+      (lesson) =>
+        lesson.title.trim().length > 0 ||
+        lesson.videoUrl.trim().length > 0 ||
+        lesson.description.trim().length > 0,
+    );
+    return hasModuleTitle || hasLessonData;
+  });
+
+  if (courseForm.status === "publicado") {
+    if (modulesWithContent.length === 0) {
+      return "Adicione pelo menos um módulo para publicar o curso.";
+    }
+
+    for (let i = 0; i < modulesWithContent.length; i += 1) {
+      const module = modulesWithContent[i];
+      if (!module.title.trim()) return `Informe o título do módulo ${i + 1}.`;
+
+      const lessonsWithContent = module.lessons.filter(
+        (lesson) =>
+          lesson.title.trim().length > 0 ||
+          lesson.videoUrl.trim().length > 0 ||
+          lesson.description.trim().length > 0,
+      );
+
+      if (lessonsWithContent.length === 0) {
+        return `Adicione pelo menos uma aula no módulo ${i + 1}.`;
+      }
+
+      for (let j = 0; j < lessonsWithContent.length; j += 1) {
+        if (!lessonsWithContent[j].title.trim()) {
+          return `Informe o título da aula ${j + 1} do módulo ${i + 1}.`;
+        }
       }
     }
   }
 
   return null;
+}
+
+function normalizeModulesForSubmit(modules: ModuleFormItem[]): ModuleFormItem[] {
+  return modules
+    .filter((module) => {
+      const hasModuleTitle = module.title.trim().length > 0;
+      const hasLessonData = module.lessons.some(
+        (lesson) =>
+          lesson.title.trim().length > 0 ||
+          lesson.videoUrl.trim().length > 0 ||
+          lesson.description.trim().length > 0,
+      );
+      return hasModuleTitle || hasLessonData;
+    })
+    .map((module) => ({
+      ...module,
+      lessons: module.lessons.filter(
+        (lesson) =>
+          lesson.title.trim().length > 0 ||
+          lesson.videoUrl.trim().length > 0 ||
+          lesson.description.trim().length > 0,
+      ),
+    }));
 }
 
 export default function GerenciarCursoPage() {
@@ -289,6 +341,8 @@ export default function GerenciarCursoPage() {
       return;
     }
 
+    const modulesToSubmit = normalizeModulesForSubmit(modules);
+
     if (!import.meta.env.VITE_API_URL) {
       setSubmitError(
         "VITE_API_URL não está configurada. Crie o arquivo .env.local com a URL da API.",
@@ -324,8 +378,8 @@ export default function GerenciarCursoPage() {
           (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
         );
 
-        for (let index = 0; index < modules.length; index += 1) {
-          const module = modules[index];
+        for (let index = 0; index < modulesToSubmit.length; index += 1) {
+          const module = modulesToSubmit[index];
           const currentOrder = index + 1;
           const existing = normalizedExisting[index];
 
@@ -368,8 +422,8 @@ export default function GerenciarCursoPage() {
         professor_id: user.user_id,
       });
 
-      for (let moduleIndex = 0; moduleIndex < modules.length; moduleIndex += 1) {
-        const module = modules[moduleIndex];
+      for (let moduleIndex = 0; moduleIndex < modulesToSubmit.length; moduleIndex += 1) {
+        const module = modulesToSubmit[moduleIndex];
         const createdModule = await createModule({
           title: module.title.trim(),
           course_id: createdCourse.course_id,
