@@ -90,6 +90,8 @@ export default function CursoPage() {
     });
   }, [lessonsByModule, modules, quizzesByLesson]);
 
+  const isCourseCompleted = Boolean(certificateInfo?.eligible);
+
   useEffect(() => {
     if (!courseIdParam || Number.isNaN(courseId)) {
       setError("Curso inválido.");
@@ -166,7 +168,7 @@ export default function CursoPage() {
   }, [courseId, courseIdParam]);
 
   useEffect(() => {
-    if (activeTab !== "certificado" || !courseIdParam || Number.isNaN(courseId)) return;
+    if (!courseIdParam || Number.isNaN(courseId)) return;
     let cancelled = false;
 
     const loadCertificate = async () => {
@@ -188,7 +190,7 @@ export default function CursoPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, courseId, courseIdParam]);
+  }, [courseId, courseIdParam]);
 
   const handleEnroll = async () => {
     if (!course) return;
@@ -284,12 +286,22 @@ export default function CursoPage() {
                 </p>
               ) : null}
               {isEnrolled && firstLessonId ? (
-                <Link
-                  to={`/curso/${courseId}/aula/${firstLessonId}`}
-                  className="mt-4 inline-flex rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-                >
-                  Continuar estudando
-                </Link>
+                isCourseCompleted ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="mt-4 inline-flex cursor-not-allowed rounded-lg bg-emerald-600/70 px-5 py-2.5 text-sm font-semibold text-white opacity-90"
+                  >
+                    Concluído
+                  </button>
+                ) : (
+                  <Link
+                    to={`/curso/${courseId}/aula/${firstLessonId}`}
+                    className="mt-4 inline-flex rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    Continuar estudando
+                  </Link>
+                )
               ) : null}
             </header>
 
@@ -471,6 +483,16 @@ export default function CursoPage() {
                           >
                             {certificateDownloading ? "Baixando..." : "Baixar certificado"}
                           </button>
+                          <div className="mt-4 rounded-lg border border-emerald-200 bg-white/70 p-3 text-xs text-emerald-800">
+                            <p>
+                              <span className="font-semibold">Código de verificação:</span>{" "}
+                              {certificateInfo.verification_code ?? "—"}
+                            </p>
+                            <p className="mt-1 break-all">
+                              <span className="font-semibold">Assinatura digital:</span>{" "}
+                              {certificateInfo.digital_signature ?? "—"}
+                            </p>
+                          </div>
                         </div>
                       ) : (
                         <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">

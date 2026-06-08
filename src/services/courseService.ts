@@ -1,5 +1,4 @@
 import api from "./api";
-import axios from "axios";
 import {
   mapCourse,
   mapCourseLesson,
@@ -264,7 +263,11 @@ export async function fetchStudentCourseProgress(): Promise<StudentCourseProgres
       mapStudentCourseProgress(item as Parameters<typeof mapStudentCourseProgress>[0]),
     );
   } catch (err: unknown) {
-    if (axios.isAxiosError(err) && err.response?.status === 404) {
+    const status =
+      typeof err === "object" && err !== null && "response" in err
+        ? (err as { response?: { status?: number } }).response?.status
+        : undefined;
+    if (status === 404) {
       sessionStorage.setItem(cacheKey, String(Date.now()));
       return [];
     }
@@ -288,23 +291,15 @@ export async function fetchCourseCertificate(courseId: number): Promise<StudentC
 }
 
 export async function downloadCourseCertificate(courseId: number): Promise<void> {
-  const token = localStorage.getItem("token");
-  const baseURL = String(api.defaults.baseURL ?? "");
-  const normalizedBaseURL = baseURL.endsWith("/") ? baseURL.slice(0, -1) : baseURL;
-  const url = `${normalizedBaseURL}/courses/${courseId}/students/me/certificate?download=true`;
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  const response = await api.get<Blob>(`/courses/${courseId}/students/me/certificate`, {
+    params: { download: true },
+    responseType: "blob",
   });
-  if (!response.ok) {
-    throw new Error("Não foi possível baixar o certificado.");
-  }
 
-  const blob = await response.blob();
-  const contentDisposition = response.headers.get("content-disposition") ?? "";
+  const blob = response.data;
+  const contentDisposition = response.headers["content-disposition"] ?? "";
   const fileNameMatch = contentDisposition.match(/filename="([^"]+)"/i);
-  const fileName = fileNameMatch?.[1] ?? `certificado_curso_${courseId}.txt`;
+  const fileName = fileNameMatch?.[1] ?? `certificado_curso_${courseId}.pdf`;
 
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

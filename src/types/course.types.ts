@@ -122,6 +122,8 @@ export interface StudentCourseCertificate {
   eligible: boolean;
   issued_at?: string | null;
   certificate_text?: string | null;
+  verification_code?: string | null;
+  digital_signature?: string | null;
 }
 
 export type CreateCourseData = {
@@ -281,6 +283,8 @@ type ApiStudentCourseCertificatePayload = {
   eligible: boolean;
   issued_at?: string | null;
   certificate_text?: string | null;
+  verification_code?: string | null;
+  digital_signature?: string | null;
 };
 
 export function mapCourse(payload: ApiCoursePayload): Course {
@@ -454,5 +458,7 @@ export function mapStudentCourseCertificate(
     eligible: payload.eligible,
     issued_at: payload.issued_at ?? null,
     certificate_text: payload.certificate_text ?? null,
+    verification_code: payload.verification_code ?? null,
+    digital_signature: payload.digital_signature ?? null,
   };
 }
