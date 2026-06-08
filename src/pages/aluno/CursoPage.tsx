@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import Navbar from "../../components/Navbar";
 import {
+  downloadCourseCertificate,
   enrollInCourse,
+  fetchCourseCertificate,
   fetchCourseDetail,
   fetchLessonQuiz,
   fetchCourseModules,
@@ -13,6 +15,7 @@ import type {
   CourseLesson,
   CourseModule,
   LessonQuiz,
+  StudentCourseCertificate,
 } from "../../types/course.types";
 import { getApiErrorMessage } from "../../utils/apiError";
 import {
@@ -45,6 +48,10 @@ export default function CursoPage() {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizzesByLesson, setQuizzesByLesson] = useState<Record<number, LessonQuiz>>({});
+  const [certificateLoading, setCertificateLoading] = useState(false);
+  const [certificateDownloading, setCertificateDownloading] = useState(false);
+  const [certificateInfo, setCertificateInfo] = useState<StudentCourseCertificate | null>(null);
+  const [certificateError, setCertificateError] = useState<string | null>(null);
 
   const lessonsByModule = useMemo(() => {
     const map = new Map<number, CourseLesson[]>();
@@ -158,6 +165,31 @@ export default function CursoPage() {
     };
   }, [courseId, courseIdParam]);
 
+  useEffect(() => {
+    if (activeTab !== "certificado" || !courseIdParam || Number.isNaN(courseId)) return;
+    let cancelled = false;
+
+    const loadCertificate = async () => {
+      setCertificateLoading(true);
+      setCertificateError(null);
+      try {
+        const cert = await fetchCourseCertificate(courseId);
+        if (!cancelled) setCertificateInfo(cert);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setCertificateError(getApiErrorMessage(err, "Não foi possível carregar dados do certificado."));
+        }
+      } finally {
+        if (!cancelled) setCertificateLoading(false);
+      }
+    };
+
+    void loadCertificate();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, courseId, courseIdParam]);
+
   const handleEnroll = async () => {
     if (!course) return;
 
@@ -173,6 +205,19 @@ export default function CursoPage() {
       setEnrollMessage(getApiErrorMessage(err, "Não foi possível realizar a matrícula."));
     } finally {
       setEnrollLoading(false);
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    if (!certificateInfo?.eligible) return;
+    setCertificateDownloading(true);
+    setCertificateError(null);
+    try {
+      await downloadCourseCertificate(courseId);
+    } catch (err: unknown) {
+      setCertificateError(getApiErrorMessage(err, "Não foi possível baixar o certificado."));
+    } finally {
+      setCertificateDownloading(false);
     }
   };
 
@@ -317,41 +362,72 @@ export default function CursoPage() {
               {activeTab === "avaliacoes" ? (
                 <div className="space-y-4 text-gray-600">
                   {quizLoading ? (
-                    <p className="text-gray-500">Carregando avaliações...</p>
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-5 text-sm text-indigo-700">
+                      Carregando avaliações...
+                    </div>
                   ) : courseEvaluations.length === 0 ? (
-                    <p className="text-gray-500">Este curso ainda não possui avaliações publicadas.</p>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                      Este curso ainda não possui avaliações publicadas.
+                    </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-5">
+                      <div className="rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                          Plano de avaliações
+                        </p>
+                        <p className="mt-1 text-sm text-indigo-900">
+                          {courseEvaluations.length} avaliação(ões) distribuídas em{" "}
+                          {new Set(courseEvaluations.map((item) => item.moduleId)).size} módulo(s).
+                        </p>
+                      </div>
+
                       {courseEvaluations.map((evaluation) => (
                         <section
                           key={`${evaluation.moduleId}-${evaluation.lessonId}`}
-                          className="rounded-xl border border-gray-200 p-4"
+                          className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
                         >
-                          <p className="text-xs font-semibold uppercase text-gray-500">
-                            {evaluation.moduleTitle}
-                          </p>
-                          <h3 className="mt-1 text-base font-semibold text-gray-900">
-                            {evaluation.lessonTitle}
-                          </h3>
-                          <p className="mt-1 text-sm text-gray-600">
-                            {evaluation.questions.length}{" "}
-                            {evaluation.questions.length === 1 ? "questão" : "questões"}
-                          </p>
-                          <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-gray-600">
-                            {evaluation.questions.slice(0, 3).map((question, index) => (
-                              <li key={question.id ?? `${evaluation.lessonId}-q-${index}`}>
-                                {question.question_text}
-                              </li>
-                            ))}
-                            {evaluation.questions.length > 3 ? (
-                              <li>...e mais {evaluation.questions.length - 3} questão(ões).</li>
-                            ) : null}
-                          </ul>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                                {evaluation.moduleTitle}
+                              </p>
+                              <h3 className="mt-1 text-base font-semibold text-gray-900">
+                                {evaluation.lessonTitle}
+                              </h3>
+                            </div>
+                            <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                              {evaluation.questions.length}{" "}
+                              {evaluation.questions.length === 1 ? "questão" : "questões"}
+                            </span>
+                          </div>
+
+                          <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50/70 p-4">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Prévia das perguntas
+                            </p>
+                            <ul className="space-y-2 text-sm text-gray-700">
+                              {evaluation.questions.slice(0, 3).map((question, index) => (
+                                <li
+                                  key={question.id ?? `${evaluation.lessonId}-q-${index}`}
+                                  className="rounded-lg bg-white px-3 py-2"
+                                >
+                                  <span className="font-medium text-indigo-700">{index + 1}.</span>{" "}
+                                  {question.question_text}
+                                </li>
+                              ))}
+                              {evaluation.questions.length > 3 ? (
+                                <li className="px-1 text-xs font-medium text-gray-500">
+                                  + {evaluation.questions.length - 3} questão(ões) nesta avaliação
+                                </li>
+                              ) : null}
+                            </ul>
+                          </div>
+
                           <Link
                             to={`/curso/${courseId}/aula/${evaluation.lessonId}`}
-                            className="mt-3 inline-flex text-sm font-medium text-indigo-600 hover:underline"
+                            className="mt-4 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
                           >
-                            Ir para a aula e responder
+                            Resolver avaliação
                           </Link>
                         </section>
                       ))}
@@ -362,12 +438,62 @@ export default function CursoPage() {
 
               {activeTab === "certificado" ? (
                 <div className="space-y-4">
-                  <p className="text-gray-600">
-                    Conclua todas as aulas e avaliações para liberar o certificado.
-                  </p>
-                  <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                    Download do certificado disponível em breve (endpoint ainda não integrado).
-                  </p>
+                  {certificateLoading ? (
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-5 text-sm text-indigo-700">
+                      Carregando status do certificado...
+                    </div>
+                  ) : certificateInfo ? (
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p className="text-sm text-gray-600">
+                          Progresso do curso:{" "}
+                          <span className="font-semibold text-gray-900">
+                            {certificateInfo.completed_lessons}/{certificateInfo.total_lessons} aulas
+                          </span>{" "}
+                          ({certificateInfo.progress_percent}%)
+                        </p>
+                      </div>
+
+                      {certificateInfo.eligible ? (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+                          <h3 className="text-base font-semibold text-emerald-800">
+                            Certificado disponível
+                          </h3>
+                          <p className="mt-1 text-sm text-emerald-700">
+                            Emitido para {certificateInfo.student_name}
+                            {certificateInfo.issued_at ? ` em ${certificateInfo.issued_at}` : ""}.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleDownloadCertificate}
+                            disabled={certificateDownloading}
+                            className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                          >
+                            {certificateDownloading ? "Baixando..." : "Baixar certificado"}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                          <h3 className="text-base font-semibold text-amber-800">
+                            Certificado ainda bloqueado
+                          </h3>
+                          <p className="mt-1 text-sm text-amber-700">
+                            Conclua todas as aulas do curso para liberar a emissão do certificado.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                      Não foi possível carregar os dados do certificado.
+                    </div>
+                  )}
+
+                  {certificateError ? (
+                    <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+                      {certificateError}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </div>

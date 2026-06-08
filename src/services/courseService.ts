@@ -10,6 +10,7 @@ import {
   mapLessonQuiz,
   mapProfessorEnrollmentMetrics,
   mapStudentCourseProgress,
+  mapStudentCourseCertificate,
   type Course,
   type CourseDetail,
   type CourseLesson,
@@ -20,6 +21,7 @@ import {
   type LessonQuiz,
   type ProfessorEnrollmentMetrics,
   type StudentCourseProgress,
+  type StudentCourseCertificate,
   type CreateCourseData,
   type CreateLessonData,
   type CreateLessonQuizData,
@@ -276,4 +278,40 @@ export async function fetchCompletedLessonsByCourse(courseId: number): Promise<n
   const lessonIds = (data as { lesson_ids?: unknown }).lesson_ids;
   if (!Array.isArray(lessonIds)) return [];
   return lessonIds.filter((value): value is number => typeof value === "number");
+}
+
+export async function fetchCourseCertificate(courseId: number): Promise<StudentCourseCertificate> {
+  const { data } = await api.get<unknown>(`/courses/${courseId}/students/me/certificate`);
+  return mapStudentCourseCertificate(
+    data as Parameters<typeof mapStudentCourseCertificate>[0],
+  );
+}
+
+export async function downloadCourseCertificate(courseId: number): Promise<void> {
+  const token = localStorage.getItem("token");
+  const baseURL = String(api.defaults.baseURL ?? "");
+  const normalizedBaseURL = baseURL.endsWith("/") ? baseURL.slice(0, -1) : baseURL;
+  const url = `${normalizedBaseURL}/courses/${courseId}/students/me/certificate?download=true`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível baixar o certificado.");
+  }
+
+  const blob = await response.blob();
+  const contentDisposition = response.headers.get("content-disposition") ?? "";
+  const fileNameMatch = contentDisposition.match(/filename="([^"]+)"/i);
+  const fileName = fileNameMatch?.[1] ?? `certificado_curso_${courseId}.txt`;
+
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
 }

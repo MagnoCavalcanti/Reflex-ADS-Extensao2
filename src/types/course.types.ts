@@ -111,6 +111,19 @@ export interface StudentCourseProgress {
   is_completed: boolean;
 }
 
+export interface StudentCourseCertificate {
+  course_id: number;
+  course_title: string;
+  student_name: string;
+  professor_name?: string | null;
+  total_lessons: number;
+  completed_lessons: number;
+  progress_percent: number;
+  eligible: boolean;
+  issued_at?: string | null;
+  certificate_text?: string | null;
+}
+
 export type CreateCourseData = {
   title: string;
   description: string;
@@ -255,6 +268,19 @@ type ApiStudentCourseProgressPayload = {
   completed_lessons: number;
   progress_percent: number;
   is_completed: boolean;
+};
+
+type ApiStudentCourseCertificatePayload = {
+  course_id: number;
+  course_title: string;
+  student_name: string;
+  professor_name?: string | null;
+  total_lessons: number;
+  completed_lessons: number;
+  progress_percent: number;
+  eligible: boolean;
+  issued_at?: string | null;
+  certificate_text?: string | null;
 };
 
 export function mapCourse(payload: ApiCoursePayload): Course {
@@ -411,5 +437,22 @@ export function mapStudentCourseProgress(
     completed_lessons: payload.completed_lessons,
     progress_percent: payload.progress_percent,
     is_completed: payload.is_completed,
+  };
+}
+
+export function mapStudentCourseCertificate(
+  payload: ApiStudentCourseCertificatePayload,
+): StudentCourseCertificate {
+  return {
+    course_id: payload.course_id,
+    course_title: payload.course_title,
+    student_name: payload.student_name,
+    professor_name: payload.professor_name ?? null,
+    total_lessons: payload.total_lessons,
+    completed_lessons: payload.completed_lessons,
+    progress_percent: payload.progress_percent,
+    eligible: payload.eligible,
+    issued_at: payload.issued_at ?? null,
+    certificate_text: payload.certificate_text ?? null,
   };
 }
