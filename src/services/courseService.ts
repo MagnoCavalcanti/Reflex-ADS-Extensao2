@@ -3,14 +3,27 @@ import {
   mapCourse,
   mapCourseLesson,
   mapCourseModule,
+  mapCourseStudent,
+  mapCourseQuizMetrics,
   mapLessonDetail,
+  mapLessonQuiz,
+  mapProfessorEnrollmentMetrics,
+  mapStudentCourseProgress,
+  mapStudentCourseCertificate,
   type Course,
   type CourseDetail,
   type CourseLesson,
   type CourseModule,
+  type CourseStudent,
+  type CourseQuizMetrics,
   type LessonDetail,
+  type LessonQuiz,
+  type ProfessorEnrollmentMetrics,
+  type StudentCourseProgress,
+  type StudentCourseCertificate,
   type CreateCourseData,
   type CreateLessonData,
+  type CreateLessonQuizData,
   type CreateLessonVideoData,
   type CreateModuleData,
 } from "../types/course.types";
@@ -154,6 +167,11 @@ export async function fetchLesson(lessonId: number): Promise<LessonDetail> {
   return mapLessonDetail(data as Parameters<typeof mapLessonDetail>[0]);
 }
 
+export async function fetchLessonQuiz(lessonId: number): Promise<LessonQuiz> {
+  const { data } = await api.get<unknown>(`/lessons/${lessonId}/quiz`);
+  return mapLessonQuiz(data as Parameters<typeof mapLessonQuiz>[0]);
+}
+
 export async function completeLesson(lessonId: number): Promise<void> {
   await api.post(`/lessons/${lessonId}`);
 }
@@ -192,4 +210,103 @@ export async function createLessonVideo(
   payload: CreateLessonVideoData,
 ): Promise<void> {
   await api.post("/lessons/create/video", payload);
+}
+
+export async function createLessonQuiz(
+  payload: CreateLessonQuizData,
+): Promise<void> {
+  await api.post("/lessons/create/quiz", payload);
+}
+
+export async function submitLessonQuizAnswers(
+  lessonId: number,
+  quizId: number,
+  answerOptionIds: number[],
+): Promise<void> {
+  await api.post("/lessons/quiz/answer", answerOptionIds, {
+    params: {
+      lesson_id: lessonId,
+      quiz_id: quizId,
+    },
+  });
+}
+
+export async function fetchCourseStudents(courseId: number): Promise<CourseStudent[]> {
+  const { data } = await api.get<unknown>(`/courses/${courseId}/students`);
+  if (!Array.isArray(data)) return [];
+  return data.map((item) => mapCourseStudent(item as Parameters<typeof mapCourseStudent>[0]));
+}
+
+export async function fetchProfessorEnrollmentMetrics(): Promise<ProfessorEnrollmentMetrics> {
+  const { data } = await api.get<unknown>("/courses/professor/me/enrollments");
+  return mapProfessorEnrollmentMetrics(
+    data as Parameters<typeof mapProfessorEnrollmentMetrics>[0],
+  );
+}
+
+export async function fetchCourseQuizMetrics(courseId: number): Promise<CourseQuizMetrics> {
+  const { data } = await api.get<unknown>(`/courses/${courseId}/quiz-metrics`);
+  return mapCourseQuizMetrics(data as Parameters<typeof mapCourseQuizMetrics>[0]);
+}
+
+export async function fetchStudentCourseProgress(): Promise<StudentCourseProgress[]> {
+  const cacheKey = "student-course-progress-endpoint-unavailable-at";
+  const unavailableAt = Number(sessionStorage.getItem(cacheKey) ?? "0");
+  const retryWindowMs = 60_000;
+  if (unavailableAt > 0 && Date.now() - unavailableAt < retryWindowMs) return [];
+
+  try {
+    const { data } = await api.get<unknown>("/courses/students/me/progress");
+    sessionStorage.removeItem(cacheKey);
+    if (!Array.isArray(data)) return [];
+    return data.map((item) =>
+      mapStudentCourseProgress(item as Parameters<typeof mapStudentCourseProgress>[0]),
+    );
+  } catch (err: unknown) {
+    const status =
+      typeof err === "object" && err !== null && "response" in err
+        ? (err as { response?: { status?: number } }).response?.status
+        : undefined;
+    if (status === 404) {
+      sessionStorage.setItem(cacheKey, String(Date.now()));
+      return [];
+    }
+    throw err;
+  }
+}
+
+export async function fetchCompletedLessonsByCourse(courseId: number): Promise<number[]> {
+  const { data } = await api.get<unknown>(`/courses/${courseId}/students/me/completed-lessons`);
+  if (!data || typeof data !== "object") return [];
+  const lessonIds = (data as { lesson_ids?: unknown }).lesson_ids;
+  if (!Array.isArray(lessonIds)) return [];
+  return lessonIds.filter((value): value is number => typeof value === "number");
+}
+
+export async function fetchCourseCertificate(courseId: number): Promise<StudentCourseCertificate> {
+  const { data } = await api.get<unknown>(`/courses/${courseId}/students/me/certificate`);
+  return mapStudentCourseCertificate(
+    data as Parameters<typeof mapStudentCourseCertificate>[0],
+  );
+}
+
+export async function downloadCourseCertificate(courseId: number): Promise<void> {
+  const response = await api.get<Blob>(`/courses/${courseId}/students/me/certificate`, {
+    params: { download: true },
+    responseType: "blob",
+  });
+
+  const blob = response.data;
+  const contentDisposition = response.headers["content-disposition"] ?? "";
+  const fileNameMatch = contentDisposition.match(/filename="([^"]+)"/i);
+  const fileName = fileNameMatch?.[1] ?? `certificado_curso_${courseId}.pdf`;
+
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
 }

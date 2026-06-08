@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import Navbar from "../../components/Navbar";
 import { useAuth } from "../../contexts/AuthContext";
-import { fetchCourses } from "../../services/courseService";
-import type { Course } from "../../types/course.types";
+import { fetchCourses, fetchStudentCourseProgress } from "../../services/courseService";
+import type { Course, StudentCourseProgress } from "../../types/course.types";
 import { getApiErrorMessage } from "../../utils/apiError";
 import { getEnrolledCourseIds, getRecentCourses } from "../../utils/studentStorage";
 
 export default function DashboardAlunoPage() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [progressByCourse, setProgressByCourse] = useState<Map<number, StudentCourseProgress>>(
+    new Map(),
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,9 +25,9 @@ export default function DashboardAlunoPage() {
     [courses, enrolledIds],
   );
 
-  const recommendedCourses = useMemo(
-    () => courses.filter((c) => !enrolledIds.has(c.course_id)).slice(0, 4),
-    [courses, enrolledIds],
+  const completedCoursesCount = useMemo(
+    () => Array.from(progressByCourse.values()).filter((item) => item.is_completed).length,
+    [progressByCourse],
   );
 
   const recentCourses = useMemo(() => {
@@ -34,7 +37,33 @@ export default function DashboardAlunoPage() {
       .slice(0, 4);
   }, [recentEntries, courses]);
 
-  const progressPercent = inProgressCourses.length > 0 ? 12 : 0;
+  const recommendedCourses = useMemo(() => {
+    const areaFrequency = new Map<string, number>();
+    const levelFrequency = new Map<string, number>();
+    inProgressCourses.forEach((course) => {
+      if (course.area) areaFrequency.set(course.area, (areaFrequency.get(course.area) ?? 0) + 1);
+      if (course.level)
+        levelFrequency.set(course.level, (levelFrequency.get(course.level) ?? 0) + 1);
+    });
+
+    const nonEnrolled = courses.filter((course) => !enrolledIds.has(course.course_id));
+    const scored = nonEnrolled.map((course) => {
+      let score = 0;
+      if (course.area && areaFrequency.has(course.area)) {
+        score += 5 + (areaFrequency.get(course.area) ?? 0);
+      }
+      if (course.level && levelFrequency.has(course.level)) {
+        score += 3 + (levelFrequency.get(course.level) ?? 0);
+      }
+      if (course.status === "publicado") score += 2;
+      return { course, score };
+    });
+
+    return scored
+      .sort((a, b) => b.score - a.score || a.course.title.localeCompare(b.course.title))
+      .slice(0, 4)
+      .map((item) => item.course);
+  }, [courses, enrolledIds, inProgressCourses]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +74,16 @@ export default function DashboardAlunoPage() {
 
       try {
         const data = await fetchCourses();
-        if (!cancelled) setCourses(data);
+        let progressData: StudentCourseProgress[] = [];
+        try {
+          progressData = await fetchStudentCourseProgress();
+        } catch {
+          progressData = [];
+        }
+        if (!cancelled) {
+          setCourses(data);
+          setProgressByCourse(new Map(progressData.map((item) => [item.course_id, item])));
+        }
       } catch (err: unknown) {
         if (!cancelled) {
           setError(getApiErrorMessage(err, "Não foi possível carregar o dashboard."));
@@ -93,33 +131,25 @@ export default function DashboardAlunoPage() {
           <>
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <p className="text-sm text-gray-500">Progresso geral</p>
-                <p className="mt-2 text-3xl font-bold text-indigo-700">{progressPercent}%</p>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    className="h-full rounded-full bg-indigo-600 transition-all"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-gray-500">
-                  Cálculo completo quando a API de progresso estiver disponível.
-                </p>
-              </article>
-              <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                 <p className="text-sm text-gray-500">Cursos em andamento</p>
                 <p className="mt-2 text-3xl font-bold text-indigo-700">
                   {inProgressCourses.length}
                 </p>
               </article>
               <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <p className="text-sm text-gray-500">Certificados</p>
-                <p className="mt-2 text-3xl font-bold text-indigo-700">0</p>
-                <p className="mt-2 text-xs text-gray-500">Em breve na plataforma.</p>
+                <p className="text-sm text-gray-500">Cursos completados</p>
+                <p className="mt-2 text-3xl font-bold text-indigo-700">{completedCoursesCount}</p>
+                <p className="mt-2 text-xs text-gray-500">Com 100% das aulas concluídas.</p>
               </article>
               <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <p className="text-sm text-gray-500">Catálogo</p>
-                <p className="mt-2 text-3xl font-bold text-indigo-700">{courses.length}</p>
-                <p className="mt-2 text-xs text-gray-500">cursos disponíveis</p>
+                <p className="text-sm text-gray-500">Últimos cursos visitados</p>
+                <p className="mt-2 text-3xl font-bold text-indigo-700">{recentCourses.length}</p>
+                <p className="mt-2 text-xs text-gray-500">limitado aos últimos 4 acessos</p>
+              </article>
+              <article className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p className="text-sm text-gray-500">Recomendações</p>
+                <p className="mt-2 text-3xl font-bold text-indigo-700">{recommendedCourses.length}</p>
+                <p className="mt-2 text-xs text-gray-500">baseadas em área e nível dos seus cursos</p>
               </article>
             </section>
 
@@ -128,6 +158,7 @@ export default function DashboardAlunoPage() {
               emptyMessage="Você ainda não está matriculado em nenhum curso."
               emptyAction={{ label: "Ver catálogo", to: "/cursos" }}
               items={inProgressCourses}
+              progressByCourse={progressByCourse}
             />
 
             <CourseSection
@@ -163,9 +194,16 @@ type CourseSectionProps = {
   emptyMessage: string;
   emptyAction: { label: string; to: string };
   items: Course[];
+  progressByCourse?: Map<number, StudentCourseProgress>;
 };
 
-function CourseSection({ title, emptyMessage, emptyAction, items }: CourseSectionProps) {
+function CourseSection({
+  title,
+  emptyMessage,
+  emptyAction,
+  items,
+  progressByCourse,
+}: CourseSectionProps) {
   return (
     <section>
       <h2 className="mb-4 text-xl font-semibold">{title}</h2>
@@ -188,6 +226,24 @@ function CourseSection({ title, emptyMessage, emptyAction, items }: CourseSectio
             >
               <h3 className="font-semibold text-gray-900">{course.title}</h3>
               <p className="mt-2 text-sm text-gray-600 line-clamp-2">{course.description}</p>
+              {progressByCourse?.has(course.course_id) ? (
+                <div className="mt-3">
+                  <div className="mb-1 flex items-center justify-between text-xs text-gray-500">
+                    <span>Progresso no curso</span>
+                    <span>
+                      {progressByCourse.get(course.course_id)?.progress_percent.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      className="h-full rounded-full bg-indigo-600 transition-all"
+                      style={{
+                        width: `${progressByCourse.get(course.course_id)?.progress_percent ?? 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : null}
               <Link
                 to={`/curso/${course.course_id}`}
                 className="mt-4 inline-flex text-sm font-semibold text-indigo-600 hover:underline"

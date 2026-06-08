@@ -2,12 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import Navbar from "../../components/Navbar";
 import {
+  downloadCourseCertificate,
   enrollInCourse,
+  fetchCourseCertificate,
   fetchCourseDetail,
+  fetchLessonQuiz,
   fetchCourseModules,
   fetchLessons,
 } from "../../services/courseService";
-import type { CourseDetail, CourseLesson, CourseModule } from "../../types/course.types";
+import type {
+  CourseDetail,
+  CourseLesson,
+  CourseModule,
+  LessonQuiz,
+  StudentCourseCertificate,
+} from "../../types/course.types";
 import { getApiErrorMessage } from "../../utils/apiError";
 import {
   addEnrolledCourseId,
@@ -37,6 +46,12 @@ export default function CursoPage() {
   const [enrollLoading, setEnrollLoading] = useState(false);
   const [enrollMessage, setEnrollMessage] = useState<string | null>(null);
   const [isEnrolled, setIsEnrolled] = useState(false);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizzesByLesson, setQuizzesByLesson] = useState<Record<number, LessonQuiz>>({});
+  const [certificateLoading, setCertificateLoading] = useState(false);
+  const [certificateDownloading, setCertificateDownloading] = useState(false);
+  const [certificateInfo, setCertificateInfo] = useState<StudentCourseCertificate | null>(null);
+  const [certificateError, setCertificateError] = useState<string | null>(null);
 
   const lessonsByModule = useMemo(() => {
     const map = new Map<number, CourseLesson[]>();
@@ -56,6 +71,27 @@ export default function CursoPage() {
     return null;
   }, [modules, lessonsByModule]);
 
+  const courseEvaluations = useMemo(() => {
+    return modules.flatMap((module) => {
+      const moduleLessons = lessonsByModule.get(module.module_id) ?? [];
+      return moduleLessons
+        .map((lesson) => {
+          const quiz = quizzesByLesson[lesson.lesson_id];
+          if (!quiz || quiz.questions.length === 0) return null;
+          return {
+            moduleId: module.module_id,
+            moduleTitle: module.title,
+            lessonId: lesson.lesson_id,
+            lessonTitle: lesson.title,
+            questions: quiz.questions,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+    });
+  }, [lessonsByModule, modules, quizzesByLesson]);
+
+  const isCourseCompleted = Boolean(certificateInfo?.eligible);
+
   useEffect(() => {
     if (!courseIdParam || Number.isNaN(courseId)) {
       setError("Curso inválido.");
@@ -70,6 +106,7 @@ export default function CursoPage() {
     const load = async () => {
       setIsLoading(true);
       setError(null);
+      setQuizzesByLesson({});
 
       try {
         const [courseData, modulesData, lessonsData] = await Promise.all([
@@ -80,23 +117,76 @@ export default function CursoPage() {
 
         if (cancelled) return;
 
+        const courseLessons = lessonsData.filter((l) =>
+          modulesData.some((m) => m.module_id === l.module_id),
+        );
+
         setCourse(courseData);
         setModules(modulesData);
-        setLessons(lessonsData.filter((l) =>
-          modulesData.some((m) => m.module_id === l.module_id),
-        ));
+        setLessons(courseLessons);
         trackRecentCourse(courseId, courseData.title);
+
+        setQuizLoading(true);
+        const quizResults = await Promise.all(
+          courseLessons.map(async (lesson) => {
+            try {
+              const quiz = await fetchLessonQuiz(lesson.lesson_id);
+              if ((quiz.questions ?? []).length === 0) return null;
+              return [lesson.lesson_id, quiz] as const;
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        if (cancelled) return;
+
+        const nextQuizMap: Record<number, LessonQuiz> = {};
+        for (const item of quizResults) {
+          if (!item) continue;
+          const [lessonId, quiz] = item;
+          nextQuizMap[lessonId] = quiz;
+        }
+        setQuizzesByLesson(nextQuizMap);
       } catch (err: unknown) {
         if (!cancelled) {
           setError(getApiErrorMessage(err, "Não foi possível carregar o curso."));
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          setQuizLoading(false);
+        }
       }
     };
 
     void load();
 
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, courseIdParam]);
+
+  useEffect(() => {
+    if (!courseIdParam || Number.isNaN(courseId)) return;
+    let cancelled = false;
+
+    const loadCertificate = async () => {
+      setCertificateLoading(true);
+      setCertificateError(null);
+      try {
+        const cert = await fetchCourseCertificate(courseId);
+        if (!cancelled) setCertificateInfo(cert);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setCertificateError(getApiErrorMessage(err, "Não foi possível carregar dados do certificado."));
+        }
+      } finally {
+        if (!cancelled) setCertificateLoading(false);
+      }
+    };
+
+    void loadCertificate();
     return () => {
       cancelled = true;
     };
@@ -117,6 +207,19 @@ export default function CursoPage() {
       setEnrollMessage(getApiErrorMessage(err, "Não foi possível realizar a matrícula."));
     } finally {
       setEnrollLoading(false);
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    if (!certificateInfo?.eligible) return;
+    setCertificateDownloading(true);
+    setCertificateError(null);
+    try {
+      await downloadCourseCertificate(courseId);
+    } catch (err: unknown) {
+      setCertificateError(getApiErrorMessage(err, "Não foi possível baixar o certificado."));
+    } finally {
+      setCertificateDownloading(false);
     }
   };
 
@@ -183,12 +286,22 @@ export default function CursoPage() {
                 </p>
               ) : null}
               {isEnrolled && firstLessonId ? (
-                <Link
-                  to={`/curso/${courseId}/aula/${firstLessonId}`}
-                  className="mt-4 inline-flex rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-                >
-                  Continuar estudando
-                </Link>
+                isCourseCompleted ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="mt-4 inline-flex cursor-not-allowed rounded-lg bg-emerald-600/70 px-5 py-2.5 text-sm font-semibold text-white opacity-90"
+                  >
+                    Concluído
+                  </button>
+                ) : (
+                  <Link
+                    to={`/curso/${courseId}/aula/${firstLessonId}`}
+                    className="mt-4 inline-flex rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    Continuar estudando
+                  </Link>
+                )
               ) : null}
             </header>
 
@@ -219,12 +332,8 @@ export default function CursoPage() {
                   </section>
                   <section>
                     <h2 className="text-lg font-semibold">Professor</h2>
-                    <p className="mt-2 text-gray-600">ID do professor: {course.professor_id}</p>
-                  </section>
-                  <section>
-                    <h2 className="text-lg font-semibold">Carga horária e objetivos</h2>
-                    <p className="mt-2 text-gray-500 text-sm">
-                      Informações detalhadas serão exibidas quando a API disponibilizar esses campos.
+                    <p className="mt-2 text-gray-600">
+                      {course.professor_name || "Professor não informado"}
                     </p>
                   </section>
                 </div>
@@ -264,23 +373,149 @@ export default function CursoPage() {
 
               {activeTab === "avaliacoes" ? (
                 <div className="space-y-4 text-gray-600">
-                  <p>Quizzes, provas e resultados aparecerão aqui conforme forem integrados à API.</p>
-                  <ul className="list-inside list-disc text-sm text-gray-500">
-                    <li>Quizzes por módulo</li>
-                    <li>Provas finais</li>
-                    <li>Histórico de resultados</li>
-                  </ul>
+                  {quizLoading ? (
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-5 text-sm text-indigo-700">
+                      Carregando avaliações...
+                    </div>
+                  ) : courseEvaluations.length === 0 ? (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                      Este curso ainda não possui avaliações publicadas.
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      <div className="rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-4 py-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                          Plano de avaliações
+                        </p>
+                        <p className="mt-1 text-sm text-indigo-900">
+                          {courseEvaluations.length} avaliação(ões) distribuídas em{" "}
+                          {new Set(courseEvaluations.map((item) => item.moduleId)).size} módulo(s).
+                        </p>
+                      </div>
+
+                      {courseEvaluations.map((evaluation) => (
+                        <section
+                          key={`${evaluation.moduleId}-${evaluation.lessonId}`}
+                          className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                                {evaluation.moduleTitle}
+                              </p>
+                              <h3 className="mt-1 text-base font-semibold text-gray-900">
+                                {evaluation.lessonTitle}
+                              </h3>
+                            </div>
+                            <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                              {evaluation.questions.length}{" "}
+                              {evaluation.questions.length === 1 ? "questão" : "questões"}
+                            </span>
+                          </div>
+
+                          <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50/70 p-4">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Prévia das perguntas
+                            </p>
+                            <ul className="space-y-2 text-sm text-gray-700">
+                              {evaluation.questions.slice(0, 3).map((question, index) => (
+                                <li
+                                  key={question.id ?? `${evaluation.lessonId}-q-${index}`}
+                                  className="rounded-lg bg-white px-3 py-2"
+                                >
+                                  <span className="font-medium text-indigo-700">{index + 1}.</span>{" "}
+                                  {question.question_text}
+                                </li>
+                              ))}
+                              {evaluation.questions.length > 3 ? (
+                                <li className="px-1 text-xs font-medium text-gray-500">
+                                  + {evaluation.questions.length - 3} questão(ões) nesta avaliação
+                                </li>
+                              ) : null}
+                            </ul>
+                          </div>
+
+                          <Link
+                            to={`/curso/${courseId}/aula/${evaluation.lessonId}`}
+                            className="mt-4 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+                          >
+                            Resolver avaliação
+                          </Link>
+                        </section>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : null}
 
               {activeTab === "certificado" ? (
                 <div className="space-y-4">
-                  <p className="text-gray-600">
-                    Conclua todas as aulas e avaliações para liberar o certificado.
-                  </p>
-                  <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                    Download do certificado disponível em breve (endpoint ainda não integrado).
-                  </p>
+                  {certificateLoading ? (
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-5 text-sm text-indigo-700">
+                      Carregando status do certificado...
+                    </div>
+                  ) : certificateInfo ? (
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p className="text-sm text-gray-600">
+                          Progresso do curso:{" "}
+                          <span className="font-semibold text-gray-900">
+                            {certificateInfo.completed_lessons}/{certificateInfo.total_lessons} aulas
+                          </span>{" "}
+                          ({certificateInfo.progress_percent}%)
+                        </p>
+                      </div>
+
+                      {certificateInfo.eligible ? (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+                          <h3 className="text-base font-semibold text-emerald-800">
+                            Certificado disponível
+                          </h3>
+                          <p className="mt-1 text-sm text-emerald-700">
+                            Emitido para {certificateInfo.student_name}
+                            {certificateInfo.issued_at ? ` em ${certificateInfo.issued_at}` : ""}.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleDownloadCertificate}
+                            disabled={certificateDownloading}
+                            className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                          >
+                            {certificateDownloading ? "Baixando..." : "Baixar certificado"}
+                          </button>
+                          <div className="mt-4 rounded-lg border border-emerald-200 bg-white/70 p-3 text-xs text-emerald-800">
+                            <p>
+                              <span className="font-semibold">Código de verificação:</span>{" "}
+                              {certificateInfo.verification_code ?? "—"}
+                            </p>
+                            <p className="mt-1 break-all">
+                              <span className="font-semibold">Assinatura digital:</span>{" "}
+                              {certificateInfo.digital_signature ?? "—"}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+                          <h3 className="text-base font-semibold text-amber-800">
+                            Certificado ainda bloqueado
+                          </h3>
+                          <p className="mt-1 text-sm text-amber-700">
+                            Conclua todas as aulas do curso para liberar a emissão do certificado.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                      Não foi possível carregar os dados do certificado.
+                    </div>
+                  )}
+
+                  {certificateError ? (
+                    <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+                      {certificateError}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </div>
