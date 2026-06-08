@@ -96,6 +96,15 @@ export interface CourseQuizMetrics {
   questions: CourseQuizQuestionMetric[];
 }
 
+export interface StudentCourseProgress {
+  course_id: number;
+  course_title?: string | null;
+  total_lessons: number;
+  completed_lessons: number;
+  progress_percent: number;
+  is_completed: boolean;
+}
+
 export type CreateCourseData = {
   title: string;
   description: string;
@@ -227,6 +236,15 @@ type ApiCourseQuizMetricsPayload = {
   questions?: ApiCourseQuizQuestionMetricPayload[];
 };
 
+type ApiStudentCourseProgressPayload = {
+  course_id: number;
+  course_title?: string | null;
+  total_lessons: number;
+  completed_lessons: number;
+  progress_percent: number;
+  is_completed: boolean;
+};
+
 export function mapCourse(payload: ApiCoursePayload): Course {
   const courseId = payload.course_id ?? payload.id;
 
@@ -350,5 +368,18 @@ export function mapCourseQuizMetrics(payload: ApiCourseQuizMetricsPayload): Cour
       correct_answers: question.correct_answers,
       accuracy_percent: question.accuracy_percent,
     })),
+  };
+}
+
+export function mapStudentCourseProgress(
+  payload: ApiStudentCourseProgressPayload,
+): StudentCourseProgress {
+  return {
+    course_id: payload.course_id,
+    course_title: payload.course_title ?? null,
+    total_lessons: payload.total_lessons,
+    completed_lessons: payload.completed_lessons,
+    progress_percent: payload.progress_percent,
+    is_completed: payload.is_completed,
   };
 }

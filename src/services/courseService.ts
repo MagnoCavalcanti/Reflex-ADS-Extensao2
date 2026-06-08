@@ -1,4 +1,5 @@
 import api from "./api";
+import axios from "axios";
 import {
   mapCourse,
   mapCourseLesson,
@@ -8,6 +9,7 @@ import {
   mapLessonDetail,
   mapLessonQuiz,
   mapProfessorEnrollmentMetrics,
+  mapStudentCourseProgress,
   type Course,
   type CourseDetail,
   type CourseLesson,
@@ -17,6 +19,7 @@ import {
   type LessonDetail,
   type LessonQuiz,
   type ProfessorEnrollmentMetrics,
+  type StudentCourseProgress,
   type CreateCourseData,
   type CreateLessonData,
   type CreateLessonQuizData,
@@ -230,4 +233,25 @@ export async function fetchProfessorEnrollmentMetrics(): Promise<ProfessorEnroll
 export async function fetchCourseQuizMetrics(courseId: number): Promise<CourseQuizMetrics> {
   const { data } = await api.get<unknown>(`/courses/${courseId}/quiz-metrics`);
   return mapCourseQuizMetrics(data as Parameters<typeof mapCourseQuizMetrics>[0]);
+}
+
+export async function fetchStudentCourseProgress(): Promise<StudentCourseProgress[]> {
+  const cacheKey = "student-course-progress-endpoint-unavailable";
+  if (sessionStorage.getItem(cacheKey) === "1") {
+    return [];
+  }
+
+  try {
+    const { data } = await api.get<unknown>("/courses/students/me/progress");
+    if (!Array.isArray(data)) return [];
+    return data.map((item) =>
+      mapStudentCourseProgress(item as Parameters<typeof mapStudentCourseProgress>[0]),
+    );
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response?.status === 404) {
+      sessionStorage.setItem(cacheKey, "1");
+      return [];
+    }
+    throw err;
+  }
 }
