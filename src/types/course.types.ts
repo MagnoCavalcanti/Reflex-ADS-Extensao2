@@ -50,6 +50,11 @@ export interface LessonQuiz {
   lesson_id: number;
   quiz_id?: number | null;
   questions: QuizQuestion[];
+  attempt?: {
+    attempt_id: number;
+    score?: number | null;
+    selected_options_by_question_id: Record<number, number>;
+  } | null;
 }
 
 export interface CourseStudent {
@@ -191,6 +196,11 @@ type ApiLessonQuizPayload = {
   lesson_id: number;
   quiz_id?: number | null;
   questions?: ApiQuizQuestionPayload[];
+  attempt?: {
+    attempt_id: number;
+    score?: number | null;
+    selected_options_by_question_id?: Record<string, number>;
+  } | null;
 };
 
 type ApiCourseStudentPayload = {
@@ -310,6 +320,16 @@ export function mapLessonDetail(payload: ApiLessonPayload): LessonDetail {
 }
 
 export function mapLessonQuiz(payload: ApiLessonQuizPayload): LessonQuiz {
+  const selectedOptions = Object.entries(
+    payload.attempt?.selected_options_by_question_id ?? {},
+  ).reduce<Record<number, number>>((acc, [questionId, selectedOptionId]) => {
+    const parsedQuestionId = Number(questionId);
+    if (!Number.isNaN(parsedQuestionId)) {
+      acc[parsedQuestionId] = selectedOptionId;
+    }
+    return acc;
+  }, {});
+
   return {
     lesson_id: payload.lesson_id,
     quiz_id: payload.quiz_id ?? null,
@@ -322,6 +342,13 @@ export function mapLessonQuiz(payload: ApiLessonQuizPayload): LessonQuiz {
         is_correct: option.is_correct ?? false,
       })),
     })),
+    attempt: payload.attempt
+      ? {
+          attempt_id: payload.attempt.attempt_id,
+          score: payload.attempt.score ?? null,
+          selected_options_by_question_id: selectedOptions,
+        }
+      : null,
   };
 }
 

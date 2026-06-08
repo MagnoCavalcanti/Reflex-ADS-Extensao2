@@ -6,9 +6,17 @@ import {
   fetchCourseDetail,
   fetchCourseModules,
   fetchLesson,
+  fetchLessonQuiz,
   fetchLessons,
+  submitLessonQuizAnswers,
 } from "../../services/courseService";
-import type { CourseDetail, CourseLesson, CourseModule, LessonDetail } from "../../types/course.types";
+import type {
+  CourseDetail,
+  CourseLesson,
+  CourseModule,
+  LessonDetail,
+  LessonQuiz,
+} from "../../types/course.types";
 import { getApiErrorMessage } from "../../utils/apiError";
 import { trackRecentCourse } from "../../utils/studentStorage";
 
@@ -23,6 +31,10 @@ function toEmbedUrl(url: string): string {
   const shortMatch = url.match(/youtu\.be\/([^?]+)/);
   if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
   return url;
+}
+
+function getOptionLabel(index: number): string {
+  return String.fromCharCode(65 + (index % 26));
 }
 
 export default function AulaPlayerPage() {
@@ -42,6 +54,13 @@ export default function AulaPlayerPage() {
   const [error, setError] = useState<string | null>(null);
   const [completeLoading, setCompleteLoading] = useState(false);
   const [completeMessage, setCompleteMessage] = useState<string | null>(null);
+  const [lessonQuiz, setLessonQuiz] = useState<LessonQuiz | null>(null);
+  const [selectedOptionsByQuestion, setSelectedOptionsByQuestion] = useState<Record<number, number>>({});
+  const [quizChecked, setQuizChecked] = useState(false);
+  const [quizAlreadyAnswered, setQuizAlreadyAnswered] = useState(false);
+  const [quizPersistLoading, setQuizPersistLoading] = useState(false);
+  const [quizSummary, setQuizSummary] = useState<{ correct: number; total: number } | null>(null);
+  const [quizMessage, setQuizMessage] = useState<string | null>(null);
 
   const lessonsByModule = useMemo(() => {
     const map = new Map<number, CourseLesson[]>();
@@ -65,13 +84,18 @@ export default function AulaPlayerPage() {
     const load = async () => {
       setIsLoading(true);
       setError(null);
+      setQuizMessage(null);
+      setQuizChecked(false);
+      setQuizSummary(null);
+      setSelectedOptionsByQuestion({});
 
       try {
-        const [courseData, lessonData, modulesData, allLessons] = await Promise.all([
+        const [courseData, lessonData, modulesData, allLessons, quizData] = await Promise.all([
           fetchCourseDetail(courseId),
           fetchLesson(lessonId),
           fetchCourseModules(courseId),
           fetchLessons(),
+          fetchLessonQuiz(lessonId).catch(() => ({ lesson_id: lessonId, quiz_id: null, questions: [] })),
         ]);
 
         if (cancelled) return;
@@ -84,6 +108,20 @@ export default function AulaPlayerPage() {
         setLesson(lessonData);
         setModules(modulesData);
         setLessons(courseLessons);
+        setLessonQuiz(quizData);
+        const existingAttempt = quizData.attempt;
+        if (existingAttempt) {
+          setSelectedOptionsByQuestion(existingAttempt.selected_options_by_question_id ?? {});
+          setQuizAlreadyAnswered(true);
+          setQuizChecked(true);
+          const totalQuestions = (quizData.questions ?? []).length;
+          const scorePercent = Number(existingAttempt.score ?? 0);
+          const correctApprox = Math.round((scorePercent / 100) * totalQuestions);
+          setQuizSummary({ correct: correctApprox, total: totalQuestions });
+          setQuizMessage("Este quiz já foi respondido. Você não pode alterar as respostas.");
+        } else {
+          setQuizAlreadyAnswered(false);
+        }
         trackRecentCourse(courseId, courseData.title);
       } catch (err: unknown) {
         if (!cancelled) {
@@ -112,6 +150,64 @@ export default function AulaPlayerPage() {
       setCompleteMessage(getApiErrorMessage(err, "Não foi possível registrar a conclusão."));
     } finally {
       setCompleteLoading(false);
+    }
+  };
+
+  const handleSelectOption = (questionId: number, optionId: number) => {
+    if (quizAlreadyAnswered) return;
+    setSelectedOptionsByQuestion((prev) => ({
+      ...prev,
+      [questionId]: optionId,
+    }));
+    if (quizChecked) {
+      setQuizChecked(false);
+      setQuizSummary(null);
+      setQuizMessage(null);
+    }
+  };
+
+  const handleSubmitQuiz = async () => {
+    if (quizAlreadyAnswered) return;
+    if (!lessonQuiz?.questions?.length) return;
+    if (!lessonQuiz.quiz_id) return;
+
+    const questions = lessonQuiz.questions ?? [];
+    const allAnswered = questions.every((question) => {
+      if (!question.id) return false;
+      return Boolean(selectedOptionsByQuestion[question.id]);
+    });
+
+    if (!allAnswered) {
+      setQuizMessage("Responda todas as questões antes de enviar.");
+      return;
+    }
+
+    const correctAnswers = questions.reduce((acc, question) => {
+      if (!question.id) return acc;
+      const selectedOptionId = selectedOptionsByQuestion[question.id];
+      const correctOption = question.options.find((option) => option.is_correct);
+      if (correctOption?.id === selectedOptionId) {
+        return acc + 1;
+      }
+      return acc;
+    }, 0);
+
+    const totalQuestions = questions.length;
+    const answerOptionIds = questions
+      .map((question) => (question.id ? selectedOptionsByQuestion[question.id] : undefined))
+      .filter((value): value is number => typeof value === "number");
+
+    setQuizPersistLoading(true);
+    try {
+      await submitLessonQuizAnswers(lessonId, lessonQuiz.quiz_id, answerOptionIds);
+      setQuizChecked(true);
+      setQuizAlreadyAnswered(true);
+      setQuizSummary({ correct: correctAnswers, total: totalQuestions });
+      setQuizMessage(`Você acertou ${correctAnswers} de ${totalQuestions} questão(ões). Respostas salvas.`);
+    } catch (err: unknown) {
+      setQuizMessage(getApiErrorMessage(err, "Não foi possível salvar as respostas."));
+    } finally {
+      setQuizPersistLoading(false);
     }
   };
 
@@ -187,9 +283,148 @@ export default function AulaPlayerPage() {
 
                 <div>
                   <h2 className="text-lg font-semibold">Exercícios da aula</h2>
-                  <p className="mt-2 text-sm text-gray-400">
-                    Exercícios e quizzes da aula serão integrados na aba Avaliações do curso.
-                  </p>
+                  {!lessonQuiz || (lessonQuiz.questions ?? []).length === 0 ? (
+                    <p className="mt-2 text-sm text-gray-400">Esta aula ainda não possui quiz publicado.</p>
+                  ) : (
+                    <div className="mt-4 space-y-5">
+                      <div className="rounded-xl border border-gray-700 bg-gray-900/40 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-300">
+                          Questionário da aula
+                        </p>
+                        <p className="mt-1 text-sm text-gray-300">
+                          Responda todas as perguntas e clique em corrigir para ver o resultado na hora.
+                        </p>
+                      </div>
+
+                      {quizSummary ? (
+                        <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-4 py-3">
+                          <p className="text-sm font-medium text-indigo-100">
+                            Resultado: {quizSummary.correct}/{quizSummary.total} acertos
+                          </p>
+                        </div>
+                      ) : null}
+
+                      {(lessonQuiz.questions ?? []).map((question, questionIndex) => (
+                        <div
+                          key={question.id ?? `question-${questionIndex}`}
+                          className="rounded-xl border border-gray-700 bg-gray-900/50 p-5"
+                        >
+                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-300">
+                            Questão {questionIndex + 1} de {lessonQuiz.questions.length}
+                          </p>
+                          <p className="mt-2 text-sm font-medium text-gray-100">
+                            {question.question_text}
+                          </p>
+
+                          <div className="mt-4 space-y-2.5">
+                            {question.options.map((option, optionIndex) => {
+                              const questionId = question.id;
+                              const selectedOptionId =
+                                questionId != null ? selectedOptionsByQuestion[questionId] : undefined;
+                              const isSelected = selectedOptionId === option.id;
+                              const isCorrectOption = option.is_correct === true;
+                              const isWrongSelected = quizChecked && isSelected && !isCorrectOption;
+                              const isCorrectHighlighted = quizChecked && isCorrectOption;
+                              return (
+                                <label
+                                  key={option.id ?? `option-${optionIndex}`}
+                                  className={[
+                                    "group flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+                                    isCorrectHighlighted
+                                      ? "border-green-500 bg-green-500/15"
+                                      : isWrongSelected
+                                        ? "border-red-500 bg-red-500/10"
+                                        : isSelected
+                                      ? "border-indigo-500 bg-indigo-500/10"
+                                      : "border-gray-700 bg-gray-900/30 hover:border-gray-500",
+                                  ].join(" ")}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`question-${question.id ?? questionIndex}`}
+                                    value={option.id}
+                                    checked={selectedOptionId === option.id}
+                                    disabled={option.id == null || questionId == null || quizAlreadyAnswered}
+                                    onChange={() => {
+                                      if (questionId != null && option.id != null) {
+                                        handleSelectOption(questionId, option.id);
+                                      }
+                                    }}
+                                    className="sr-only"
+                                  />
+                                  <span
+                                    className={[
+                                      "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+                                      isCorrectHighlighted
+                                        ? "border-green-400 bg-green-500 text-white"
+                                        : isWrongSelected
+                                          ? "border-red-400 bg-red-500 text-white"
+                                          : isSelected
+                                        ? "border-indigo-400 bg-indigo-500 text-white"
+                                        : "border-gray-500 text-gray-300",
+                                    ].join(" ")}
+                                  >
+                                    {getOptionLabel(optionIndex)}
+                                  </span>
+                                  <span
+                                    className={
+                                      isCorrectHighlighted
+                                        ? "text-green-100"
+                                        : isWrongSelected
+                                          ? "text-red-100"
+                                          : isSelected
+                                            ? "text-indigo-100"
+                                            : "text-gray-200"
+                                    }
+                                  >
+                                    {option.option_text}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+
+                          {quizChecked && question.id != null ? (
+                            (() => {
+                              const selectedOptionId = selectedOptionsByQuestion[question.id];
+                              const correctOption = question.options.find((option) => option.is_correct);
+                              const isCorrect = correctOption?.id === selectedOptionId;
+                              return (
+                                <p
+                                  className={[
+                                    "mt-3 text-xs font-medium",
+                                    isCorrect ? "text-green-300" : "text-amber-300",
+                                  ].join(" ")}
+                                >
+                                  {isCorrect
+                                    ? "Resposta correta."
+                                    : `Resposta incorreta. Correta: ${correctOption?.option_text ?? "não identificada"}.`}
+                                </p>
+                              );
+                            })()
+                          ) : null}
+                        </div>
+                      ))}
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={handleSubmitQuiz}
+                          disabled={quizAlreadyAnswered || quizPersistLoading}
+                          className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
+                        >
+                          {quizPersistLoading
+                            ? "Salvando respostas..."
+                            : quizAlreadyAnswered
+                              ? "Quiz já respondido"
+                              : "Enviar e corrigir"}
+                        </button>
+                        {quizMessage ? (
+                          <p className="text-sm text-green-300">{quizMessage}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-3">

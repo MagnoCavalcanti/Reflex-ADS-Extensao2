@@ -217,6 +217,21 @@ export async function createLessonQuiz(
   await api.post("/lessons/create/quiz", payload);
 }
 
+export async function submitLessonQuizAnswers(
+  lessonId: number,
+  quizId: number,
+  answerOptionIds: number[],
+): Promise<void> {
+  const params = new URLSearchParams();
+  params.append("lesson_id", String(lessonId));
+  params.append("quiz_id", String(quizId));
+  for (const optionId of answerOptionIds) {
+    params.append("answer_option_ids", String(optionId));
+  }
+
+  await api.post("/lessons/quiz/answer", null, { params });
+}
+
 export async function fetchCourseStudents(courseId: number): Promise<CourseStudent[]> {
   const { data } = await api.get<unknown>(`/courses/${courseId}/students`);
   if (!Array.isArray(data)) return [];

@@ -4,10 +4,16 @@ import Navbar from "../../components/Navbar";
 import {
   enrollInCourse,
   fetchCourseDetail,
+  fetchLessonQuiz,
   fetchCourseModules,
   fetchLessons,
 } from "../../services/courseService";
-import type { CourseDetail, CourseLesson, CourseModule } from "../../types/course.types";
+import type {
+  CourseDetail,
+  CourseLesson,
+  CourseModule,
+  LessonQuiz,
+} from "../../types/course.types";
 import { getApiErrorMessage } from "../../utils/apiError";
 import {
   addEnrolledCourseId,
@@ -37,6 +43,8 @@ export default function CursoPage() {
   const [enrollLoading, setEnrollLoading] = useState(false);
   const [enrollMessage, setEnrollMessage] = useState<string | null>(null);
   const [isEnrolled, setIsEnrolled] = useState(false);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizzesByLesson, setQuizzesByLesson] = useState<Record<number, LessonQuiz>>({});
 
   const lessonsByModule = useMemo(() => {
     const map = new Map<number, CourseLesson[]>();
@@ -56,6 +64,25 @@ export default function CursoPage() {
     return null;
   }, [modules, lessonsByModule]);
 
+  const courseEvaluations = useMemo(() => {
+    return modules.flatMap((module) => {
+      const moduleLessons = lessonsByModule.get(module.module_id) ?? [];
+      return moduleLessons
+        .map((lesson) => {
+          const quiz = quizzesByLesson[lesson.lesson_id];
+          if (!quiz || quiz.questions.length === 0) return null;
+          return {
+            moduleId: module.module_id,
+            moduleTitle: module.title,
+            lessonId: lesson.lesson_id,
+            lessonTitle: lesson.title,
+            questions: quiz.questions,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+    });
+  }, [lessonsByModule, modules, quizzesByLesson]);
+
   useEffect(() => {
     if (!courseIdParam || Number.isNaN(courseId)) {
       setError("Curso inválido.");
@@ -70,6 +97,7 @@ export default function CursoPage() {
     const load = async () => {
       setIsLoading(true);
       setError(null);
+      setQuizzesByLesson({});
 
       try {
         const [courseData, modulesData, lessonsData] = await Promise.all([
@@ -80,18 +108,46 @@ export default function CursoPage() {
 
         if (cancelled) return;
 
+        const courseLessons = lessonsData.filter((l) =>
+          modulesData.some((m) => m.module_id === l.module_id),
+        );
+
         setCourse(courseData);
         setModules(modulesData);
-        setLessons(lessonsData.filter((l) =>
-          modulesData.some((m) => m.module_id === l.module_id),
-        ));
+        setLessons(courseLessons);
         trackRecentCourse(courseId, courseData.title);
+
+        setQuizLoading(true);
+        const quizResults = await Promise.all(
+          courseLessons.map(async (lesson) => {
+            try {
+              const quiz = await fetchLessonQuiz(lesson.lesson_id);
+              if ((quiz.questions ?? []).length === 0) return null;
+              return [lesson.lesson_id, quiz] as const;
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        if (cancelled) return;
+
+        const nextQuizMap: Record<number, LessonQuiz> = {};
+        for (const item of quizResults) {
+          if (!item) continue;
+          const [lessonId, quiz] = item;
+          nextQuizMap[lessonId] = quiz;
+        }
+        setQuizzesByLesson(nextQuizMap);
       } catch (err: unknown) {
         if (!cancelled) {
           setError(getApiErrorMessage(err, "Não foi possível carregar o curso."));
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          setQuizLoading(false);
+        }
       }
     };
 
@@ -223,12 +279,6 @@ export default function CursoPage() {
                       {course.professor_name || "Professor não informado"}
                     </p>
                   </section>
-                  <section>
-                    <h2 className="text-lg font-semibold">Carga horária e objetivos</h2>
-                    <p className="mt-2 text-gray-500 text-sm">
-                      Informações detalhadas serão exibidas quando a API disponibilizar esses campos.
-                    </p>
-                  </section>
                 </div>
               ) : null}
 
@@ -266,12 +316,47 @@ export default function CursoPage() {
 
               {activeTab === "avaliacoes" ? (
                 <div className="space-y-4 text-gray-600">
-                  <p>Quizzes, provas e resultados aparecerão aqui conforme forem integrados à API.</p>
-                  <ul className="list-inside list-disc text-sm text-gray-500">
-                    <li>Quizzes por módulo</li>
-                    <li>Provas finais</li>
-                    <li>Histórico de resultados</li>
-                  </ul>
+                  {quizLoading ? (
+                    <p className="text-gray-500">Carregando avaliações...</p>
+                  ) : courseEvaluations.length === 0 ? (
+                    <p className="text-gray-500">Este curso ainda não possui avaliações publicadas.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {courseEvaluations.map((evaluation) => (
+                        <section
+                          key={`${evaluation.moduleId}-${evaluation.lessonId}`}
+                          className="rounded-xl border border-gray-200 p-4"
+                        >
+                          <p className="text-xs font-semibold uppercase text-gray-500">
+                            {evaluation.moduleTitle}
+                          </p>
+                          <h3 className="mt-1 text-base font-semibold text-gray-900">
+                            {evaluation.lessonTitle}
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-600">
+                            {evaluation.questions.length}{" "}
+                            {evaluation.questions.length === 1 ? "questão" : "questões"}
+                          </p>
+                          <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-gray-600">
+                            {evaluation.questions.slice(0, 3).map((question, index) => (
+                              <li key={question.id ?? `${evaluation.lessonId}-q-${index}`}>
+                                {question.question_text}
+                              </li>
+                            ))}
+                            {evaluation.questions.length > 3 ? (
+                              <li>...e mais {evaluation.questions.length - 3} questão(ões).</li>
+                            ) : null}
+                          </ul>
+                          <Link
+                            to={`/curso/${courseId}/aula/${evaluation.lessonId}`}
+                            className="mt-3 inline-flex text-sm font-medium text-indigo-600 hover:underline"
+                          >
+                            Ir para a aula e responder
+                          </Link>
+                        </section>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : null}
 
