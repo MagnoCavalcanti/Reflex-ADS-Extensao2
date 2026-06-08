@@ -4,6 +4,7 @@ import {
   mapCourseLesson,
   mapCourseModule,
   mapCourseStudent,
+  mapCourseQuizMetrics,
   mapLessonDetail,
   mapLessonQuiz,
   mapProfessorEnrollmentMetrics,
@@ -12,6 +13,7 @@ import {
   type CourseLesson,
   type CourseModule,
   type CourseStudent,
+  type CourseQuizMetrics,
   type LessonDetail,
   type LessonQuiz,
   type ProfessorEnrollmentMetrics,
@@ -223,4 +225,9 @@ export async function fetchProfessorEnrollmentMetrics(): Promise<ProfessorEnroll
   return mapProfessorEnrollmentMetrics(
     data as Parameters<typeof mapProfessorEnrollmentMetrics>[0],
   );
+}
+
+export async function fetchCourseQuizMetrics(courseId: number): Promise<CourseQuizMetrics> {
+  const { data } = await api.get<unknown>(`/courses/${courseId}/quiz-metrics`);
+  return mapCourseQuizMetrics(data as Parameters<typeof mapCourseQuizMetrics>[0]);
 }

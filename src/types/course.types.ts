@@ -76,6 +76,26 @@ export interface ProfessorEnrollmentMetrics {
   courses_by_enrollments: ProfessorCourseEnrollment[];
 }
 
+export interface CourseQuizQuestionMetric {
+  question_id: number;
+  question_text: string;
+  module_id?: number | null;
+  module_title?: string | null;
+  lesson_id?: number | null;
+  lesson_title?: string | null;
+  total_answers: number;
+  correct_answers: number;
+  accuracy_percent: number;
+}
+
+export interface CourseQuizMetrics {
+  course_id: number;
+  questions_total: number;
+  answers_total: number;
+  correct_answers_total: number;
+  questions: CourseQuizQuestionMetric[];
+}
+
 export type CreateCourseData = {
   title: string;
   description: string;
@@ -187,6 +207,26 @@ type ApiProfessorEnrollmentMetricsPayload = {
   courses_by_enrollments?: ApiProfessorCourseEnrollmentPayload[];
 };
 
+type ApiCourseQuizQuestionMetricPayload = {
+  question_id: number;
+  question_text: string;
+  module_id?: number | null;
+  module_title?: string | null;
+  lesson_id?: number | null;
+  lesson_title?: string | null;
+  total_answers: number;
+  correct_answers: number;
+  accuracy_percent: number;
+};
+
+type ApiCourseQuizMetricsPayload = {
+  course_id: number;
+  questions_total: number;
+  answers_total: number;
+  correct_answers_total: number;
+  questions?: ApiCourseQuizQuestionMetricPayload[];
+};
+
 export function mapCourse(payload: ApiCoursePayload): Course {
   const courseId = payload.course_id ?? payload.id;
 
@@ -289,6 +329,26 @@ export function mapProfessorEnrollmentMetrics(
       course_id: course.course_id,
       title: course.title,
       enrollments: course.enrollments,
+    })),
+  };
+}
+
+export function mapCourseQuizMetrics(payload: ApiCourseQuizMetricsPayload): CourseQuizMetrics {
+  return {
+    course_id: payload.course_id,
+    questions_total: payload.questions_total,
+    answers_total: payload.answers_total,
+    correct_answers_total: payload.correct_answers_total,
+    questions: (payload.questions ?? []).map((question) => ({
+      question_id: question.question_id,
+      question_text: question.question_text,
+      module_id: question.module_id ?? null,
+      module_title: question.module_title ?? null,
+      lesson_id: question.lesson_id ?? null,
+      lesson_title: question.lesson_title ?? null,
+      total_answers: question.total_answers,
+      correct_answers: question.correct_answers,
+      accuracy_percent: question.accuracy_percent,
     })),
   };
 }

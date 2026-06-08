@@ -10,12 +10,14 @@ import {
   createModule,
   fetchCourseDetail,
   fetchCourseModules,
+  fetchCourseQuizMetrics,
   fetchCourseStudents,
   fetchLessonQuiz,
   fetchLessons,
   updateCourse,
 } from "../../services/courseService";
 import type {
+  CourseQuizMetrics,
   CourseStatus,
   CourseStudent,
 } from "../../types/course.types";
@@ -201,6 +203,29 @@ function normalizeModulesForSubmit(modules: ModuleFormItem[]): ModuleFormItem[] 
     }));
 }
 
+function buildQuizPayload(lesson: LessonFormItem) {
+  return lesson.quizQuestions
+    .map((question) => ({
+      question_text: question.question_text.trim(),
+      options: question.options
+        .map((option) => ({
+          option_text: option.option_text.trim(),
+          is_correct: option.is_correct,
+        }))
+        .filter((option) => option.option_text),
+    }))
+    .filter(
+      (question) =>
+        question.question_text &&
+        question.options.length >= 2 &&
+        question.options.some((option) => option.is_correct),
+    );
+}
+
+function getLessonContentType(lesson: LessonFormItem): "V" | "Q" {
+  return buildQuizPayload(lesson).length > 0 ? "Q" : "V";
+}
+
 export default function GerenciarCursoPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -227,6 +252,9 @@ export default function GerenciarCursoPage() {
   const [students, setStudents] = useState<CourseStudent[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [studentsError, setStudentsError] = useState<string | null>(null);
+  const [quizMetrics, setQuizMetrics] = useState<CourseQuizMetrics | null>(null);
+  const [isLoadingQuizMetrics, setIsLoadingQuizMetrics] = useState(false);
+  const [quizMetricsError, setQuizMetricsError] = useState<string | null>(null);
 
   const pageTitle = isEditMode
     ? courseForm.title.trim() || "Editar curso"
@@ -274,21 +302,19 @@ export default function GerenciarCursoPage() {
                 .filter((l) => l.module_id === module.module_id)
                 .map(async (lesson) => {
                   let quizQuestions: QuizQuestionFormItem[] = [];
-                  if (lesson.content_type === "Q") {
-                    try {
-                      const quiz = await fetchLessonQuiz(lesson.lesson_id);
-                      quizQuestions = quiz.questions.map((question) => ({
+                  try {
+                    const quiz = await fetchLessonQuiz(lesson.lesson_id);
+                    quizQuestions = quiz.questions.map((question) => ({
+                      clientId: createClientId(),
+                      question_text: question.question_text,
+                      options: question.options.map((option) => ({
                         clientId: createClientId(),
-                        question_text: question.question_text,
-                        options: question.options.map((option) => ({
-                          clientId: createClientId(),
-                          option_text: option.option_text,
-                          is_correct: option.is_correct,
-                        })),
-                      }));
-                    } catch {
-                      quizQuestions = [];
-                    }
+                        option_text: option.option_text,
+                        is_correct: option.is_correct,
+                      })),
+                    }));
+                  } catch {
+                    quizQuestions = [];
                   }
 
                   return {
@@ -349,6 +375,33 @@ export default function GerenciarCursoPage() {
     };
 
     void loadStudents();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isEditMode, parsedCourseId]);
+
+  useEffect(() => {
+    if (!isEditMode || parsedCourseId == null || activeTab !== "exercicios") return;
+
+    let cancelled = false;
+    const loadQuizMetrics = async () => {
+      setIsLoadingQuizMetrics(true);
+      setQuizMetricsError(null);
+      try {
+        const data = await fetchCourseQuizMetrics(parsedCourseId);
+        if (!cancelled) setQuizMetrics(data);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setQuizMetricsError(
+            getApiErrorMessage(err, "Não foi possível carregar métricas de exercícios."),
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoadingQuizMetrics(false);
+      }
+    };
+
+    void loadQuizMetrics();
     return () => {
       cancelled = true;
     };
@@ -586,59 +639,64 @@ export default function GerenciarCursoPage() {
         const normalizedExisting = [...existingModules].sort(
           (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
         );
+        const existingLessons = await fetchLessons();
+        const lessonsByModule = new Map<number, typeof existingLessons>();
+        for (const lesson of existingLessons) {
+          const list = lessonsByModule.get(lesson.module_id) ?? [];
+          list.push(lesson);
+          lessonsByModule.set(lesson.module_id, list);
+        }
 
         for (let index = 0; index < modulesToSubmit.length; index += 1) {
           const module = modulesToSubmit[index];
           const currentOrder = index + 1;
-          const existing = normalizedExisting[index];
+          const existingModule = normalizedExisting[index];
+          const targetModule =
+            existingModule && existingModule.title.trim() === module.title.trim()
+              ? existingModule
+              : await createModule({
+                  title: module.title.trim(),
+                  course_id: updatedCourse.course_id,
+                  order_index: currentOrder,
+                });
+          const moduleLessons = [...(lessonsByModule.get(targetModule.module_id) ?? [])].sort(
+            (a, b) => a.lesson_id - b.lesson_id,
+          );
 
-          if (existing && existing.title.trim() === module.title.trim()) {
-            continue;
-          }
-
-          const createdModule = await createModule({
-            title: module.title.trim(),
-            course_id: updatedCourse.course_id,
-            order_index: currentOrder,
-          });
-
-          for (const lesson of module.lessons) {
-            const createdLesson = await createLesson({
-              title: lesson.title.trim(),
-              content_type: "V",
-              module_id: createdModule.module_id,
-            });
+          for (let lessonIndex = 0; lessonIndex < module.lessons.length; lessonIndex += 1) {
+            const lesson = module.lessons[lessonIndex];
+            const existingLesson = moduleLessons[lessonIndex];
+            const contentType = getLessonContentType(lesson);
+            const targetLesson =
+              existingLesson && existingLesson.title.trim() === lesson.title.trim()
+                ? existingLesson
+                : await createLesson({
+                    title: lesson.title.trim(),
+                    content_type: contentType,
+                    module_id: targetModule.module_id,
+                  });
 
             if (lesson.videoUrl.trim()) {
-              await createLessonVideo({
-                lesson_id: createdLesson.lesson_id,
-                video_url: lesson.videoUrl.trim(),
-              });
+              const shouldCreateVideo =
+                !targetLesson.video_url || targetLesson.video_url.trim() !== lesson.videoUrl.trim();
+              if (shouldCreateVideo) {
+                await createLessonVideo({
+                  lesson_id: targetLesson.lesson_id,
+                  video_url: lesson.videoUrl.trim(),
+                });
+              }
             }
 
-            const quizQuestions = lesson.quizQuestions
-              .map((question) => ({
-                question_text: question.question_text.trim(),
-                options: question.options.map((option) => ({
-                  option_text: option.option_text.trim(),
-                  is_correct: option.is_correct,
-                })),
-              }))
-              .filter(
-                (question) =>
-                  question.question_text &&
-                  question.options.filter((option) => option.option_text).length >= 2 &&
-                  question.options.some((option) => option.is_correct),
-              );
+            const quizQuestions = buildQuizPayload(lesson);
 
             if (quizQuestions.length > 0) {
-              await createLessonQuiz({
-                lesson_id: createdLesson.lesson_id,
-                questions: quizQuestions.map((question) => ({
-                  question_text: question.question_text,
-                  options: question.options.filter((option) => option.option_text),
-                })),
-              });
+              const existingQuiz = await fetchLessonQuiz(targetLesson.lesson_id);
+              if (existingQuiz.questions.length === 0) {
+                await createLessonQuiz({
+                  lesson_id: targetLesson.lesson_id,
+                  questions: quizQuestions,
+                });
+              }
             }
           }
         }
@@ -668,9 +726,10 @@ export default function GerenciarCursoPage() {
         });
 
         for (const lesson of module.lessons) {
+          const contentType = getLessonContentType(lesson);
           const createdLesson = await createLesson({
             title: lesson.title.trim(),
-            content_type: "V",
+            content_type: contentType,
             module_id: createdModule.module_id,
           });
 
@@ -681,28 +740,12 @@ export default function GerenciarCursoPage() {
             });
           }
 
-          const quizQuestions = lesson.quizQuestions
-            .map((question) => ({
-              question_text: question.question_text.trim(),
-              options: question.options.map((option) => ({
-                option_text: option.option_text.trim(),
-                is_correct: option.is_correct,
-              })),
-            }))
-            .filter(
-              (question) =>
-                question.question_text &&
-                question.options.filter((option) => option.option_text).length >= 2 &&
-                question.options.some((option) => option.is_correct),
-            );
+          const quizQuestions = buildQuizPayload(lesson);
 
           if (quizQuestions.length > 0) {
             await createLessonQuiz({
               lesson_id: createdLesson.lesson_id,
-              questions: quizQuestions.map((question) => ({
-                question_text: question.question_text,
-                options: question.options.filter((option) => option.option_text),
-              })),
+              questions: quizQuestions,
             });
           }
         }
@@ -1035,6 +1078,76 @@ export default function GerenciarCursoPage() {
                   Configure os quizzes diretamente em cada aula na aba Conteúdo. As perguntas
                   definidas lá são enviadas para a API automaticamente ao salvar.
                 </p>
+                <div className="mt-6">
+                  {isLoadingQuizMetrics ? (
+                    <p className="text-sm text-gray-500">Carregando métricas...</p>
+                  ) : quizMetricsError ? (
+                    <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                      {quizMetricsError}
+                    </p>
+                  ) : !quizMetrics || quizMetrics.questions_total === 0 ? (
+                    <p className="text-sm text-gray-500">
+                      Ainda não há respostas de alunos para calcular acertos por questão.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                          <p className="text-xs text-gray-500">Questões</p>
+                          <p className="text-lg font-semibold text-gray-800">
+                            {quizMetrics.questions_total}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                          <p className="text-xs text-gray-500">Respostas totais</p>
+                          <p className="text-lg font-semibold text-gray-800">
+                            {quizMetrics.answers_total}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                          <p className="text-xs text-gray-500">Respostas corretas</p>
+                          <p className="text-lg font-semibold text-emerald-700">
+                            {quizMetrics.correct_answers_total}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-left text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200 text-gray-600">
+                              <th className="px-3 py-2">Módulo</th>
+                              <th className="px-3 py-2">Aula</th>
+                              <th className="px-3 py-2">Questão</th>
+                              <th className="px-3 py-2">Corretas</th>
+                              <th className="px-3 py-2">Respostas</th>
+                              <th className="px-3 py-2">% acerto</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {quizMetrics.questions.map((question) => (
+                              <tr key={question.question_id} className="border-b border-gray-100">
+                                <td className="px-3 py-2">
+                                  {question.module_title || "Não informado"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {question.lesson_title || "Não informado"}
+                                </td>
+                                <td className="px-3 py-2">{question.question_text}</td>
+                                <td className="px-3 py-2 text-emerald-700 font-medium">
+                                  {question.correct_answers}
+                                </td>
+                                <td className="px-3 py-2">{question.total_answers}</td>
+                                <td className="px-3 py-2">
+                                  {question.accuracy_percent.toFixed(2)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </div>
               </article>
             ) : null}
 
