@@ -2,18 +2,17 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import Navbar from "../../components/Navbar";
 import { useAuth } from "../../contexts/AuthContext";
-import { fetchCourses } from "../../services/courseService";
-import type { Course } from "../../types/course.types";
+import { fetchProfessorEnrollmentMetrics } from "../../services/courseService";
+import type { ProfessorEnrollmentMetrics } from "../../types/course.types";
 import { getApiErrorMessage } from "../../utils/apiError";
 
 export default function DashboardProfessorPage() {
   const { user } = useAuth();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [metrics, setMetrics] = useState<ProfessorEnrollmentMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const username = user?.username ?? "Professor";
-  const myCourses = courses.filter((course) => course.professor_id === user?.user_id);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,8 +22,8 @@ export default function DashboardProfessorPage() {
       setError(null);
 
       try {
-        const data = await fetchCourses();
-        if (!cancelled) setCourses(data);
+        const data = await fetchProfessorEnrollmentMetrics();
+        if (!cancelled) setMetrics(data);
       } catch (err: unknown) {
         if (!cancelled) {
           setError(getApiErrorMessage(err, "Não foi possível carregar o resumo."));
@@ -66,18 +65,56 @@ export default function DashboardProfessorPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <article className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <p className="text-sm text-gray-500">Meus cursos</p>
-                <p className="mt-2 text-4xl font-bold text-emerald-700">{myCourses.length}</p>
-              </article>
-              <article className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <p className="text-sm text-gray-500">No catálogo</p>
-                <p className="mt-2 text-4xl font-bold text-emerald-700">{courses.length}</p>
+                <p className="mt-2 text-4xl font-bold text-emerald-700">
+                  {metrics?.courses_total ?? 0}
+                </p>
               </article>
               <article className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:col-span-2 lg:col-span-1">
-                <p className="text-sm text-gray-500">Alunos matriculados</p>
-                <p className="mt-2 text-4xl font-bold text-gray-400">—</p>
-                <p className="mt-1 text-xs text-gray-500">Métricas em breve na API.</p>
+                <p className="text-sm text-gray-500">Matrículas totais</p>
+                <p className="mt-2 text-4xl font-bold text-emerald-700">
+                  {metrics?.total_enrollments ?? 0}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">Somando todos os seus cursos.</p>
+              </article>
+              <article className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:col-span-2 lg:col-span-1">
+                <p className="text-sm text-gray-500">Curso com mais matrículas</p>
+                {metrics?.courses_by_enrollments?.[0] ? (
+                  <>
+                    <p className="mt-2 text-base font-semibold text-emerald-800">
+                      {metrics.courses_by_enrollments[0].title}
+                    </p>
+                    <p className="mt-1 text-sm text-gray-600">
+                      {metrics.courses_by_enrollments[0].enrollments} matrícula(s)
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-500">Sem matrículas até o momento.</p>
+                )}
               </article>
             </div>
+
+            <section className="mt-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900">Matrículas por curso</h2>
+              {metrics?.courses_by_enrollments?.length ? (
+                <ul className="mt-4 space-y-2">
+                  {metrics.courses_by_enrollments.map((course) => (
+                    <li
+                      key={course.course_id}
+                      className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2"
+                    >
+                      <span className="font-medium text-gray-800">{course.title}</span>
+                      <span className="text-sm text-emerald-700">
+                        {course.enrollments} matrícula(s)
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-gray-500">
+                  Nenhum curso com matrícula registrado ainda.
+                </p>
+              )}
+            </section>
 
             <section className="mt-10 grid gap-4 md:grid-cols-2">
               <Link

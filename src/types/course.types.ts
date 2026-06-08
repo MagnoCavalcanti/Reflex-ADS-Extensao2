@@ -63,6 +63,19 @@ export interface CourseStudent {
   };
 }
 
+export interface ProfessorCourseEnrollment {
+  course_id: number;
+  title: string;
+  enrollments: number;
+}
+
+export interface ProfessorEnrollmentMetrics {
+  professor_id: number;
+  courses_total: number;
+  total_enrollments: number;
+  courses_by_enrollments: ProfessorCourseEnrollment[];
+}
+
 export type CreateCourseData = {
   title: string;
   description: string;
@@ -161,6 +174,19 @@ type ApiCourseStudentPayload = {
   };
 };
 
+type ApiProfessorCourseEnrollmentPayload = {
+  course_id: number;
+  title: string;
+  enrollments: number;
+};
+
+type ApiProfessorEnrollmentMetricsPayload = {
+  professor_id: number;
+  courses_total: number;
+  total_enrollments: number;
+  courses_by_enrollments?: ApiProfessorCourseEnrollmentPayload[];
+};
+
 export function mapCourse(payload: ApiCoursePayload): Course {
   const courseId = payload.course_id ?? payload.id;
 
@@ -249,5 +275,20 @@ export function mapCourseStudent(payload: ApiCourseStudentPayload): CourseStuden
       email: payload.student.email ?? null,
       telephone: payload.student.telephone ?? null,
     },
+  };
+}
+
+export function mapProfessorEnrollmentMetrics(
+  payload: ApiProfessorEnrollmentMetricsPayload,
+): ProfessorEnrollmentMetrics {
+  return {
+    professor_id: payload.professor_id,
+    courses_total: payload.courses_total,
+    total_enrollments: payload.total_enrollments,
+    courses_by_enrollments: (payload.courses_by_enrollments ?? []).map((course) => ({
+      course_id: course.course_id,
+      title: course.title,
+      enrollments: course.enrollments,
+    })),
   };
 }

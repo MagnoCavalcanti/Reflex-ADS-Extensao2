@@ -6,6 +6,7 @@ import {
   mapCourseStudent,
   mapLessonDetail,
   mapLessonQuiz,
+  mapProfessorEnrollmentMetrics,
   type Course,
   type CourseDetail,
   type CourseLesson,
@@ -13,6 +14,7 @@ import {
   type CourseStudent,
   type LessonDetail,
   type LessonQuiz,
+  type ProfessorEnrollmentMetrics,
   type CreateCourseData,
   type CreateLessonData,
   type CreateLessonQuizData,
@@ -214,4 +216,11 @@ export async function fetchCourseStudents(courseId: number): Promise<CourseStude
   const { data } = await api.get<unknown>(`/courses/${courseId}/students`);
   if (!Array.isArray(data)) return [];
   return data.map((item) => mapCourseStudent(item as Parameters<typeof mapCourseStudent>[0]));
+}
+
+export async function fetchProfessorEnrollmentMetrics(): Promise<ProfessorEnrollmentMetrics> {
+  const { data } = await api.get<unknown>("/courses/professor/me/enrollments");
+  return mapProfessorEnrollmentMetrics(
+    data as Parameters<typeof mapProfessorEnrollmentMetrics>[0],
+  );
 }

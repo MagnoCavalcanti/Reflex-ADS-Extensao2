@@ -644,6 +644,9 @@ export default function GerenciarCursoPage() {
         }
 
         setSubmitSuccess("Curso atualizado com sucesso!");
+        window.setTimeout(() => {
+          navigate("/professor/cursos", { replace: true });
+        }, 700);
         return;
       }
 
