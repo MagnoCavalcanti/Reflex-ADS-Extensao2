@@ -136,6 +136,13 @@ export default function CursoPage() {
         ) : course ? (
           <>
             <header className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              {course.cover_image_url ? (
+                <img
+                  src={course.cover_image_url}
+                  alt={`Capa do curso ${course.title}`}
+                  className="mb-5 h-56 w-full rounded-xl object-cover"
+                />
+              ) : null}
               <h1 className="text-2xl font-bold md:text-3xl">{course.title}</h1>
               <p className="mt-2 text-gray-600">{course.description}</p>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -147,6 +154,16 @@ export default function CursoPage() {
                     Nível: {course.level}
                   </span>
                 ) : null}
+                <span
+                  className={[
+                    "rounded-full px-3 py-1 text-sm font-medium",
+                    course.status === "publicado"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-amber-100 text-amber-800",
+                  ].join(" ")}
+                >
+                  {course.status === "publicado" ? "Publicado" : "Rascunho"}
+                </span>
               </div>
               {!isEnrolled ? (
                 <button

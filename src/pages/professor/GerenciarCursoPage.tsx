@@ -10,7 +10,9 @@ import {
   fetchCourseDetail,
   fetchCourseModules,
   fetchLessons,
+  updateCourse,
 } from "../../services/courseService";
+import type { CourseStatus } from "../../types/course.types";
 import { getApiErrorMessage } from "../../utils/apiError";
 
 const fieldClass =
@@ -33,8 +35,6 @@ const EDITOR_TABS = [
 ] as const;
 
 type EditorTab = (typeof EDITOR_TABS)[number]["id"];
-type CourseStatus = "rascunho" | "publicado";
-
 type LessonFormItem = {
   clientId: string;
   title: string;
@@ -100,17 +100,69 @@ function validateForm(
   if (!courseForm.description.trim()) return "Informe a descrição do curso.";
   if (!courseForm.area) return "Selecione uma categoria.";
 
-  for (let i = 0; i < modules.length; i += 1) {
-    const module = modules[i];
-    if (!module.title.trim()) return `Informe o título do módulo ${i + 1}.`;
-    for (let j = 0; j < module.lessons.length; j += 1) {
-      if (!module.lessons[j].title.trim()) {
-        return `Informe o título da aula ${j + 1} do módulo ${i + 1}.`;
+  const modulesWithContent = modules.filter((module) => {
+    const hasModuleTitle = module.title.trim().length > 0;
+    const hasLessonData = module.lessons.some(
+      (lesson) =>
+        lesson.title.trim().length > 0 ||
+        lesson.videoUrl.trim().length > 0 ||
+        lesson.description.trim().length > 0,
+    );
+    return hasModuleTitle || hasLessonData;
+  });
+
+  if (courseForm.status === "publicado") {
+    if (modulesWithContent.length === 0) {
+      return "Adicione pelo menos um módulo para publicar o curso.";
+    }
+
+    for (let i = 0; i < modulesWithContent.length; i += 1) {
+      const module = modulesWithContent[i];
+      if (!module.title.trim()) return `Informe o título do módulo ${i + 1}.`;
+
+      const lessonsWithContent = module.lessons.filter(
+        (lesson) =>
+          lesson.title.trim().length > 0 ||
+          lesson.videoUrl.trim().length > 0 ||
+          lesson.description.trim().length > 0,
+      );
+
+      if (lessonsWithContent.length === 0) {
+        return `Adicione pelo menos uma aula no módulo ${i + 1}.`;
+      }
+
+      for (let j = 0; j < lessonsWithContent.length; j += 1) {
+        if (!lessonsWithContent[j].title.trim()) {
+          return `Informe o título da aula ${j + 1} do módulo ${i + 1}.`;
+        }
       }
     }
   }
 
   return null;
+}
+
+function normalizeModulesForSubmit(modules: ModuleFormItem[]): ModuleFormItem[] {
+  return modules
+    .filter((module) => {
+      const hasModuleTitle = module.title.trim().length > 0;
+      const hasLessonData = module.lessons.some(
+        (lesson) =>
+          lesson.title.trim().length > 0 ||
+          lesson.videoUrl.trim().length > 0 ||
+          lesson.description.trim().length > 0,
+      );
+      return hasModuleTitle || hasLessonData;
+    })
+    .map((module) => ({
+      ...module,
+      lessons: module.lessons.filter(
+        (lesson) =>
+          lesson.title.trim().length > 0 ||
+          lesson.videoUrl.trim().length > 0 ||
+          lesson.description.trim().length > 0,
+      ),
+    }));
 }
 
 export default function GerenciarCursoPage() {
@@ -170,8 +222,8 @@ export default function GerenciarCursoPage() {
           title: course.title,
           description: course.description,
           area: course.area ?? "",
-          coverImageUrl: "",
-          status: "publicado",
+          coverImageUrl: course.cover_image_url ?? "",
+          status: course.status ?? "rascunho",
         });
 
         if (courseModules.length === 0) {
@@ -289,6 +341,8 @@ export default function GerenciarCursoPage() {
       return;
     }
 
+    const modulesToSubmit = normalizeModulesForSubmit(modules);
+
     if (!import.meta.env.VITE_API_URL) {
       setSubmitError(
         "VITE_API_URL não está configurada. Crie o arquivo .env.local com a URL da API.",
@@ -310,11 +364,52 @@ export default function GerenciarCursoPage() {
 
     try {
       if (isEditMode && parsedCourseId != null) {
-        console.log(
-          `[Editor] PUT /courses/${parsedCourseId} — integração pendente:`,
-          { courseForm, modules },
+        const updatedCourse = await updateCourse(parsedCourseId, {
+          title: courseForm.title.trim(),
+          description: courseForm.description.trim(),
+          area: courseForm.area,
+          status: courseForm.status,
+          cover_image_url: courseForm.coverImageUrl.trim() || null,
+          professor_id: user.user_id,
+        });
+
+        const existingModules = await fetchCourseModules(updatedCourse.course_id);
+        const normalizedExisting = [...existingModules].sort(
+          (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
         );
-        setSubmitSuccess("Alterações validadas. A API de edição será conectada em breve.");
+
+        for (let index = 0; index < modulesToSubmit.length; index += 1) {
+          const module = modulesToSubmit[index];
+          const currentOrder = index + 1;
+          const existing = normalizedExisting[index];
+
+          if (existing && existing.title.trim() === module.title.trim()) {
+            continue;
+          }
+
+          const createdModule = await createModule({
+            title: module.title.trim(),
+            course_id: updatedCourse.course_id,
+            order_index: currentOrder,
+          });
+
+          for (const lesson of module.lessons) {
+            const createdLesson = await createLesson({
+              title: lesson.title.trim(),
+              content_type: "V",
+              module_id: createdModule.module_id,
+            });
+
+            if (lesson.videoUrl.trim()) {
+              await createLessonVideo({
+                lesson_id: createdLesson.lesson_id,
+                video_url: lesson.videoUrl.trim(),
+              });
+            }
+          }
+        }
+
+        setSubmitSuccess("Curso atualizado com sucesso!");
         return;
       }
 
@@ -322,19 +417,23 @@ export default function GerenciarCursoPage() {
         title: courseForm.title.trim(),
         description: courseForm.description.trim(),
         area: courseForm.area,
+        status: courseForm.status,
+        cover_image_url: courseForm.coverImageUrl.trim() || null,
         professor_id: user.user_id,
       });
 
-      for (const module of modules) {
+      for (let moduleIndex = 0; moduleIndex < modulesToSubmit.length; moduleIndex += 1) {
+        const module = modulesToSubmit[moduleIndex];
         const createdModule = await createModule({
           title: module.title.trim(),
           course_id: createdCourse.course_id,
+          order_index: moduleIndex + 1,
         });
 
         for (const lesson of module.lessons) {
           const createdLesson = await createLesson({
             title: lesson.title.trim(),
-            content_type: "video",
+            content_type: "V",
             module_id: createdModule.module_id,
           });
 
